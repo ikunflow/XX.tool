@@ -120,6 +120,7 @@
         .settings-bar input[type="text"] { width: 140px; text-align: left; }
         .settings-bar input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
 
+        /* --- 上传区域及拖拽激活样式 --- */
         .upload-area {
             padding: 40px 20px;
             text-align: center;
@@ -127,14 +128,17 @@
             background: #f8fbfe;
             cursor: pointer;
             margin-bottom: 20px;
-            transition: all 0.3s;
+            transition: all 0.2s ease-in-out;
+            user-select: none;
         }
         .cutter-upload { border: 2px dashed var(--primary-color); }
-        .cutter-upload:hover { background: #edf5fc; }
+        .cutter-upload:hover, .cutter-upload.dragover { background: #edf5fc; border-color: var(--primary-hover); transform: scale(1.01); }
+        
         .compressor-upload { border: 2px dashed var(--purple-color); }
-        .compressor-upload:hover { background: #f5edfca2; }
+        .compressor-upload:hover, .compressor-upload.dragover { background: #f5edfca2; border-color: var(--purple-hover); transform: scale(1.01); }
+        
         .video-upload { border: 2px dashed var(--orange-color); }
-        .video-upload:hover { background: #fdf6ed; }
+        .video-upload:hover, .video-upload.dragover { background: #fdf6ed; border-color: var(--orange-hover); transform: scale(1.01); }
         
         .file-input-hidden { display: none; }
         
@@ -273,8 +277,8 @@
             </div>
         </div>
 
-        <div class="upload-area cutter-upload" onclick="document.getElementById('cutterFileInput').click()">
-            <p style="margin:0; font-size: 15px; color:#555;">点击或将图片拖拽到此处进行多选上传</p>
+        <div id="cutterDropZone" class="upload-area cutter-upload" onclick="document.getElementById('cutterFileInput').click()">
+            <p style="margin:0; font-size: 15px; color:#555;">点击或将图片<b>拖拽到此处</b>进行多选上传</p>
             <input type="file" id="cutterFileInput" class="file-input-hidden" accept="image/*" multiple>
         </div>
         <div id="cutterStatus" class="status-msg status-cutter"></div>
@@ -298,8 +302,8 @@
             </div>
         </div>
 
-        <div class="upload-area compressor-upload" onclick="document.getElementById('compressorFileInput').click()">
-            <p style="margin:0; font-size: 15px; color:#555;">点击或将图片拖拽到此处开始原图压缩</p>
+        <div id="compressorDropZone" class="upload-area compressor-upload" onclick="document.getElementById('compressorFileInput').click()">
+            <p style="margin:0; font-size: 15px; color:#555;">点击或将图片<b>拖拽到此处</b>开始原图压缩</p>
             <input type="file" id="compressorFileInput" class="file-input-hidden" accept="image/*">
         </div>
         <div id="compressorStatus" class="status-msg status-compressor"></div>
@@ -355,8 +359,8 @@
             </div>
         </div>
 
-        <div class="upload-area video-upload" onclick="document.getElementById('videoFileInput').click()">
-            <p style="margin:0; font-size: 15px; color:#555;">点击或将本地视频文件 (MP4 / WebM) 拖拽到此处</p>
+        <div id="videoDropZone" class="upload-area video-upload" onclick="document.getElementById('videoFileInput').click()">
+            <p style="margin:0; font-size: 15px; color:#555;">点击或将本地视频文件 (MP4 / WebM) <b>拖拽到此处</b></p>
             <input type="file" id="videoFileInput" class="file-input-hidden" accept="video/*">
         </div>
 
@@ -393,8 +397,69 @@ function goHome() {
     resetVideoWorkspace();
 }
 
+// ==================== 🛠️ 全局拖拽拦截与绑定优化 ====================
+// 核心：强行阻止浏览器全局文件拖放引起的默认刷新/跳转行为
+window.addEventListener('dragover', function(e) { e.preventDefault(); }, false);
+window.addEventListener('drop', function(e) { e.preventDefault(); }, false);
+
+// 抽象封装：为任意指定区域和Input输入框绑定拖拽监听
+function setupDragAndDrop(zoneId, inputId, customProcessHandler = null) {
+    const zone = document.getElementById(zoneId);
+    const input = document.getElementById(inputId);
+
+    if (!zone || !input) return;
+
+    // 当文件拖入当前敏感区域上方
+    zone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zone.classList.add('dragover');
+    });
+
+    // 当文件离开该区域
+    zone.addEventListener('dragleave', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zone.classList.remove('dragover');
+    });
+
+    // 当文件在区域内释放
+    zone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zone.classList.remove('dragover');
+
+        const dt = e.dataTransfer;
+        const files = dt.files;
+
+        if (files && files.length > 0) {
+            if (customProcessHandler) {
+                // 如果传入了特异性处理引擎，则直驱引擎执行（如视频）
+                customProcessHandler(files);
+            } else {
+                // 否则同步映射模拟到标准的 Input 节点，触发系统原生 change 逻辑（如多图切图）
+                input.files = files;
+                const changeEvent = new Event('change', { bubbles: true });
+                input.dispatchEvent(changeEvent);
+            }
+        }
+    });
+}
+
+// 页面加载完成后，全自动化挂载所有拖拽接收锚点
+window.addEventListener('DOMContentLoaded', () => {
+    // 1. 挂载切割压缩模块
+    setupDragAndDrop('cutterDropZone', 'cutterFileInput');
+    // 2. 挂载单图保真压缩模块
+    setupDragAndDrop('compressorDropZone', 'compressorFileInput');
+    // 3. 挂载视频转序列帧模块 (直驱核心转换引擎)
+    setupDragAndDrop('videoDropZone', 'videoFileInput', (files) => {
+        processVideoFrameEngine(files[0]);
+    });
+});
+
+
 // ==================== 核心逻辑一：切割压缩模块 ====================
-// (保持原有逻辑完好，此处省略重复的长段底层侦听函数，全部映射及绑定在上面的HTML中)
 const cutterFileInput = document.getElementById('cutterFileInput');
 const cutterMasterContainer = document.getElementById('cutterMasterContainer');
 const cutterStatus = document.getElementById('cutterStatus');
@@ -490,12 +555,28 @@ const compressorStatus = document.getElementById('compressorStatus');
 const compressorActionBar = document.getElementById('compressorActionBar');
 const compressorSizeInput = document.getElementById('compressorSizeInput');
 let singleCompressResult = null; let compressorActiveImg = null;
-compressorFileInput.addEventListener('change', (e) => handleIncomingImg(e, 'compressor'));
-compressorSizeInput.addEventListener('change', () => { if (compressorActiveImg) processSingleCompress(compressorActiveImg); });
+
+// 同时侦听点击文件上传的变化
+compressorFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) handleIncomingImgData(file);
+});
 
 function resetCompressorWorkspace() {
     compressorFileInput.value = ''; compressorOutputContainer.innerHTML = ''; compressorStatus.textContent = ''; compressorActionBar.style.display = 'none'; singleCompressResult = null; compressorActiveImg = null;
 }
+
+// 统一封装单图传入接口
+function handleIncomingImgData(file) {
+    compressorStatus.textContent = '载入中...'; compressorActionBar.style.display = 'none'; compressorOutputContainer.innerHTML = '';
+    const reader = new FileReader();
+    reader.onload = function(event) {
+        const img = new Image();
+        img.onload = function() { compressorActiveImg = img; processSingleCompress(img); };
+        img.src = event.target.result;
+    }; reader.readAsDataURL(file);
+}
+
 function processSingleCompress(img) {
     compressorStatus.textContent = '正在计算原图最佳压缩比例...'; compressorOutputContainer.innerHTML = ''; singleCompressResult = null;
     const maxByteSize = (parseFloat(compressorSizeInput.value) || 100) * 1024; const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
@@ -571,7 +652,7 @@ function triggerDirectDownload(url, filename) {
     .catch(() => { const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = "noreferrer noopener"; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); });
 }
 
-// ==================== 新增逻辑四：视频转序列帧图片模块 ====================
+// ==================== 业务逻辑四：视频转序列帧图片模块 ====================
 const videoFileInput = document.getElementById('videoFileInput');
 const videoStatus = document.getElementById('videoStatus');
 const videoActionBar = document.getElementById('videoActionBar');
@@ -580,36 +661,31 @@ const videoOutputWrapper = document.getElementById('videoOutputWrapper');
 const videoFrameCountInput = document.getElementById('videoFrameCountInput');
 const videoFrameSizeInput = document.getElementById('videoFrameSizeInput');
 const videoNamePrefix = document.getElementById('videoNamePrefix');
+let videoZipQueue = []; 
 
-let videoZipQueue = []; // 存储导出的序列帧图像Blob流数据
-
-videoFileInput.addEventListener('change', handleIncomingVideoFile);
+// 监听常规点击上传的变化
+videoFileInput.addEventListener('change', (e) => {
+    if (e.target.files[0]) processVideoFrameEngine(e.target.files[0]);
+});
 
 function resetVideoWorkspace() {
     videoFileInput.value = ''; videoStatus.textContent = ''; videoActionBar.style.display = 'none';
     videoGridContainer.innerHTML = ''; videoOutputWrapper.style.display = 'none'; videoZipQueue = [];
 }
 
-function handleIncomingVideoFile(e) {
-    const file = e.target.files[0];
+// 核心转换调度引擎（支持点击与拖拽传入统一调度）
+function processVideoFrameEngine(file) {
     if (!file) return;
-
-    // 初始化界面状态
-    videoGridContainer.innerHTML = '';
-    videoOutputWrapper.style.display = 'none';
-    videoActionBar.style.display = 'none';
-    videoZipQueue = [];
+    videoGridContainer.innerHTML = ''; videoOutputWrapper.style.display = 'none'; videoActionBar.style.display = 'none'; videoZipQueue = [];
     videoStatus.textContent = '🎬 正在加载本地视频，计算轨道帧率基础信息...';
 
     const targetFrameCount = parseInt(videoFrameCountInput.value) || 10;
     const maxKByteSize = (parseFloat(videoFrameSizeInput.value) || 50) * 1024;
     const prefixName = videoNamePrefix.value.trim() || "frame";
 
-    // 创建虚拟不可见的 Video 节点进行离屏轨道分析
     const videoNode = document.createElement('video');
     videoNode.src = URL.createObjectURL(file);
-    videoNode.muted = true;
-    videoNode.playsInline = true;
+    videoNode.muted = true; videoNode.playsInline = true;
 
     videoNode.addEventListener('loadedmetadata', async () => {
         const duration = videoNode.duration;
@@ -617,11 +693,9 @@ function handleIncomingVideoFile(e) {
             videoStatus.textContent = '❌ 错误：无法获取该视频的有效总时长。';
             return;
         }
-
         videoOutputWrapper.style.display = 'block';
         videoStatus.textContent = `视频加载成功 (${videoNode.videoWidth}x${videoNode.videoHeight})。开始提取共 ${targetFrameCount} 张目标序列图像...`;
 
-        // 生成时间切片序列
         const interval = duration / (targetFrameCount + 1);
         let capturedCount = 0;
 
@@ -629,30 +703,22 @@ function handleIncomingVideoFile(e) {
             const targetTime = i * interval;
             videoStatus.textContent = `⏳ 正在精确抽帧：第 ${i} / ${targetFrameCount} 张 (时间轴点: ${targetTime.toFixed(2)}s)...`;
             
-            // 驱动硬件解码寻道
             await seekVideoToTime(videoNode, targetTime);
             
-            // 创建离屏 Canvas 截取当前帧画面
             const canvas = document.createElement('canvas');
-            canvas.width = videoNode.videoWidth;
-            canvas.height = videoNode.videoHeight;
+            canvas.width = videoNode.videoWidth; canvas.height = videoNode.videoHeight;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(videoNode, 0, 0, canvas.width, canvas.height);
 
-            // 格式化输出文件名称
             const indexStr = String(i).padStart(3, '0');
             const finalImageName = `${prefixName}_${indexStr}.jpeg`;
 
-            // 调用等比例自适应智压引擎强行把单帧缩减到指定的 K 大小以内
             await new Promise((resolve) => {
                 compressEngine(canvas, 0.95, maxKByteSize, (blob) => {
                     const blobUrl = URL.createObjectURL(blob);
                     const realKB = (blob.size / 1024).toFixed(1);
-
-                    // 入队 ZIP 压缩包缓存
                     videoZipQueue.push({ blob: blob, fileName: finalImageName });
 
-                    // 创建渲染预览卡片
                     const card = document.createElement('div');
                     card.className = 'res-card';
                     card.innerHTML = `
@@ -666,11 +732,8 @@ function handleIncomingVideoFile(e) {
                 });
             });
         }
-
-        videoStatus.textContent = `✨ 恭喜！成功完成视频抽帧。共截取 ${capturedCount} 张高保真图像，单张体积完全锁定在设定档位内！`;
+        videoStatus.textContent = `✨ 成功完成视频抽帧！共截取 ${capturedCount} 张高保真图像，单张体积完全锁定在设定档位内！`;
         videoActionBar.style.display = 'block';
-        
-        // 释放临时 Blob
         URL.revokeObjectURL(videoNode.src);
     });
 
@@ -679,67 +742,36 @@ function handleIncomingVideoFile(e) {
     });
 }
 
-// 辅助寻道 Promise
 function seekVideoToTime(videoElement, time) {
     return new Promise((resolve) => {
-        const onSeeked = () => {
-            videoElement.removeEventListener('seeked', onSeeked);
-            resolve();
-        };
+        const onSeeked = () => { videoElement.removeEventListener('seeked', onSeeked); resolve(); };
         videoElement.addEventListener('seeked', onSeeked);
         videoElement.currentTime = time;
     });
 }
 
-// 导出打包的序列帧压缩包
 function executeVideoZipDownload() {
     if (videoZipQueue.length === 0) return;
-
     videoStatus.textContent = '🎁 正在整合所有量化后的序列图像，构建 ZIP 归档包...';
     const zip = new JSZip();
-    
-    videoZipQueue.forEach(item => {
-        zip.file(item.fileName, item.blob);
-    });
-
+    videoZipQueue.forEach(item => { zip.file(item.fileName, item.blob); });
     const zipName = (videoNamePrefix.value.trim() || "video_frames") + "_序列帧合集.zip";
-    
-    zip.generateAsync({ type: "blob" }).then(content => {
-        saveAs(content, zipName);
-        videoStatus.textContent = `✨ 下载成功！已将全部序列帧图片妥善存储至【${zipName}】。`;
-    });
+    zip.generateAsync({ type: "blob" }).then(content => { saveAs(content, zipName); videoStatus.textContent = `✨ 下载成功！已打包至【${zipName}】。`; });
 }
 
-// ==================== 底层通用共享分配器和自适应压缩引擎 ====================
-function handleIncomingImg(e, moduleTag) {
-    const file = e.target.files[0]; if (!file) return;
-    compressorStatus.textContent = '载入中...'; compressorActionBar.style.display = 'none'; compressorOutputContainer.innerHTML = '';
-    const reader = new FileReader();
-    reader.onload = function(event) {
-        const img = new Image();
-        img.onload = function() { compressorActiveImg = img; processSingleCompress(img); };
-        img.src = event.target.result;
-    }; reader.readAsDataURL(file);
-}
-
+// ==================== 底层通用智压递归引擎 ====================
 function compressEngine(canvas, quality, maxByteSize, callback) {
     canvas.toBlob((blob) => {
         if (blob.size <= maxByteSize || quality <= 0.1) {
             if (blob.size > maxByteSize) {
-                // 如果质量调到极低仍然超标，则执行等比例硬件分辨率下采样（降尺寸）
                 const nextCanvas = document.createElement('canvas');
                 nextCanvas.width = Math.floor(canvas.width * 0.85);
                 nextCanvas.height = Math.floor(canvas.height * 0.85);
                 const ctx = nextCanvas.getContext('2d');
                 ctx.drawImage(canvas, 0, 0, nextCanvas.width, nextCanvas.height);
                 compressEngine(nextCanvas, 0.9, maxByteSize, callback);
-            } else {
-                callback(blob);
-            }
-        } else {
-            // 阶梯递归降低图像编码质量
-            compressEngine(canvas, quality - 0.05, maxByteSize, callback);
-        }
+            } else { callback(blob); }
+        } else { compressEngine(canvas, quality - 0.05, maxByteSize, callback); }
     }, 'image/jpeg', quality);
 }
 
