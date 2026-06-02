@@ -16,6 +16,8 @@
             --warning-hover: #d35400;
             --purple-color: #9b59b6;
             --purple-hover: #8e44ad;
+            --teal-color: #1abc9c;
+            --teal-hover: #16a085;
             --bg-color: #f5f7fa;
         }
         
@@ -60,6 +62,7 @@
         }
         .module-card.cutter-card:hover { border-color: var(--primary-color); }
         .module-card.compressor-card:hover { border-color: var(--purple-color); }
+        .module-card.downloader-card:hover { border-color: var(--teal-color); }
         
         .module-card .icon { font-size: 48px; margin-bottom: 15px; }
         .module-card h3 { margin: 0 0 10px 0; color: #2c3e50; font-size: 20px; }
@@ -148,6 +151,102 @@
         .btn-all-download.compressor-btn { background: var(--purple-color); box-shadow: 0 4px 6px rgba(155, 89, 182, 0.2); }
         .btn-all-download.compressor-btn:hover { background: var(--purple-hover); }
 
+        /* --- 新增：资源下载模块特有样式 --- */
+        .downloader-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .downloader-bar input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid var(--teal-color);
+            border-radius: 6px;
+            font-size: 14px;
+            outline: none;
+        }
+        .btn-analyze {
+            background: var(--teal-color);
+            color: white;
+            border: none;
+            padding: 0 25px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        .btn-analyze:hover { background: var(--teal-hover); }
+        
+        .res-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        .res-tab {
+            padding: 6px 16px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .res-tab.active {
+            background: var(--teal-color);
+            color: white;
+        }
+        
+        .res-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .res-card {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+        .res-preview {
+            width: 100%;
+            height: 120px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            overflow: hidden;
+            margin-bottom: 8px;
+        }
+        .res-preview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .res-preview video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .res-info {
+            font-size: 11px;
+            color: #666;
+            word-break: break-all;
+            margin-bottom: 8px;
+            text-align: left;
+            line-height: 1.3;
+            max-height: 48px;
+            overflow: hidden;
+        }
+
         /* --- 多图外层卡片布局 --- */
         .batch-wrapper {
             margin-top: 25px;
@@ -198,11 +297,13 @@
             text-decoration: none;
             font-size: 13px;
             display: inline-block;
+            text-align: center;
         }
         .btn-download:hover { background: var(--success-hover); }
         .status-msg { text-align: center; font-weight: bold; margin: 15px 0; min-height: 20px;}
         .status-cutter { color: var(--warning-color); }
         .status-compressor { color: var(--purple-color); }
+        .status-downloader { color: var(--teal-color); }
     </style>
 </head>
 <body>
@@ -211,7 +312,7 @@
     
     <div id="mainDashboard" class="main-dash">
         <h1>图像处理妙妙工具</h1>
-        <div class="subtitle">本地运行</div>
+        <div class="subtitle">本地运行 · 新增万能媒体资源检索</div>
         
         <div class="module-grid">
             <div class="module-card cutter-card" onclick="switchModule('cutterWorkspace')">
@@ -224,6 +325,12 @@
                 <div class="icon">🗜️</div>
                 <h3>单图压缩模块</h3>
                 <p>不裁剪画面，完美保持图片原始长宽比例，通过智压算法将整张单图精确控制在指定 KB 大小以内。</p>
+            </div>
+
+            <div class="module-card downloader-card" onclick="switchModule('downloaderWorkspace')">
+                <div class="icon">🌐</div>
+                <h3>资源下载模块</h3>
+                <p>提取任意网页中的图片、视频和音频资源，突破同源跨域阻碍，智能嗅探并提供一键本地保存。</p>
             </div>
         </div>
     </div>
@@ -298,6 +405,31 @@
         <div class="single-output" id="compressorOutputContainer"></div>
     </div>
 
+    <div id="downloaderWorkspace" class="workspace">
+        <button class="btn-back" onclick="goHome()">⬅️ 返回主页</button>
+        <div class="header-area">
+            <h2>万能网页媒体资源嗅探与下载器</h2>
+            <p><strong>功能说明：</strong>粘贴带有媒体的目标网页 URL，程序会自动抓取、过滤并提取出页面中的所有图片、视频和音频文件。安全本地下载，不经第三方转存。</p>
+        </div>
+
+        <div class="downloader-bar">
+            <input type="text" id="targetUrlInput" placeholder="请在此处粘贴目标网页网址 (例如 https://example.com) 或媒体直链...">
+            <button class="btn-analyze" onclick="analyzeTargetUrl()">🔍 提取资源</button>
+        </div>
+
+        <div id="downloaderStatus" class="status-msg status-downloader"></div>
+
+        <div id="resDisplayArea" style="display:none;">
+            <div class="res-tabs">
+                <div class="res-tab active" onclick="switchResTab('all')">全部 (<span id="count-all">0</span>)</div>
+                <div class="res-tab" onclick="switchResTab('image')">图片 (<span id="count-image">0</span>)</div>
+                <div class="res-tab" onclick="switchResTab('video')">视频 (<span id="count-video">0</span>)</div>
+                <div class="res-tab" onclick="switchResTab('audio')">音频 (<span id="count-audio">0</span>)</div>
+            </div>
+            <div class="res-grid" id="resGridContainer"></div>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -310,9 +442,11 @@ function switchModule(moduleId) {
 function goHome() {
     document.getElementById('cutterWorkspace').style.display = 'none';
     document.getElementById('compressorWorkspace').style.display = 'none';
+    document.getElementById('downloaderWorkspace').style.display = 'none';
     document.getElementById('mainDashboard').style.display = 'block';
     resetCutterWorkspace();
     resetCompressorWorkspace();
+    resetDownloaderWorkspace();
 }
 
 // ==================== 核心逻辑一：切割压缩模块 ====================
@@ -455,7 +589,6 @@ function sliceSingleImgInBatch(img, baseName, gridSize, maxByteSize, pattern, ta
     }
 }
 
-// 批量多图安全导出（外层ZIP包命名逻辑全面重写，强行跟随用户输入的自定义前缀）
 function executeCutterDownload() {
     if (cutterDownloadQueue.length === 0) return;
 
@@ -465,35 +598,28 @@ function executeCutterDownload() {
             zip.folder(task.folder).file(task.fileName, task.blob);
         });
         
-        // 【最核心改动】获取用户在输入框写下的原生文本
         let userRawPattern = namePatternInput.value.trim();
         let zipTitle = ""; 
 
-        // 强行把用户输入的格式中的占位符抹去，只留下固定命名的文本内容
         let extractedPrefix = userRawPattern
             .replace(/{num}/g, "")
             .replace(/{name}/g, "")
-            .replace(/[\\/:*?"<>|]/g, "") // 过滤掉操作系统非法字符
+            .replace(/[\\/:*?"<>|]/g, "") 
             .trim();
 
-        // 组合大ZIP文件的最终大名
         if (extractedPrefix && extractedPrefix !== "_" && extractedPrefix !== "-") {
-            // 情况一：如果提取出了有效自定义文字，100%采用它
             zipTitle = extractedPrefix;
         } else if (globalUploadedFiles.length === 1) {
-            // 情况二：如果是纯默认数字且只传了单图，用原图片名
             zipTitle = `${globalUploadedFiles[0]}_切图打包`;
         } else {
-            // 情况三：纯默认数字多图，使用兜底通用名
             zipTitle = "批量切图大合集";
         }
         
-        // 最终安全净化过滤
         zipTitle = zipTitle.replace(/[\\/:*?"<>|]/g, "_") || "切图合集";
 
         cutterStatus.textContent = '正在多图归类、打包为大压缩包中...';
         zip.generateAsync({ type: "blob" }).then(content => {
-            saveAs(content, `${zipTitle}.zip`); // 去除多余后缀，清爽输出你指定的名称
+            saveAs(content, `${zipTitle}.zip`); 
             cutterStatus.textContent = `✨ 成功！压缩包已重命名为【${zipTitle}.zip】并下载。`;
         });
     } else {
@@ -562,6 +688,206 @@ function executeCompressorDownload() {
     if (!singleCompressResult) return;
     const a = document.createElement('a'); a.href = singleCompressResult.url; a.download = singleCompressResult.fileName;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+// ==================== 新增逻辑三：万能资源下载模块 ====================
+const targetUrlInput = document.getElementById('targetUrlInput');
+const downloaderStatus = document.getElementById('downloaderStatus');
+const resDisplayArea = document.getElementById('resDisplayArea');
+const resGridContainer = document.getElementById('resGridContainer');
+
+let discoveredResources = []; 
+let currentActiveTab = 'all';
+
+function resetDownloaderWorkspace() {
+    targetUrlInput.value = '';
+    downloaderStatus.textContent = '';
+    resDisplayArea.style.display = 'none';
+    resGridContainer.innerHTML = '';
+    discoveredResources = [];
+}
+
+async function analyzeTargetUrl() {
+    let urlText = targetUrlInput.value.trim();
+    if (!urlText) {
+        downloaderStatus.textContent = '❌ 请先输入有效的网址链接！';
+        return;
+    }
+    
+    // 补全协议头
+    if (!/^https?:\/\//i.test(urlText)) {
+        urlText = 'https://' + urlText;
+        targetUrlInput.value = urlText;
+    }
+
+    downloaderStatus.textContent = '🔍 正在分析提取中，请稍候...';
+    resDisplayArea.style.display = 'none';
+    resGridContainer.innerHTML = '';
+    discoveredResources = [];
+
+    // 检查是否是直链
+    if (/\.(jpeg|jpg|gif|png|webp|mp4|webm|ogg|mp3|wav)$/i.test(urlText.split('?')[0])) {
+        downloaderStatus.textContent = '🎯 检测到多媒体直接链接，已成功捕获！';
+        let type = 'image';
+        if (/\.(mp4|webm|ogg)$/i.test(urlText)) type = 'video';
+        if (/\.(mp3|wav)$/i.test(urlText)) type = 'audio';
+        discoveredResources.push({ url: urlText, type: type, name: urlText.substring(urlText.lastIndexOf('/') + 1) });
+        renderDiscoveredResources();
+        return;
+    }
+
+    // 网页抓取过滤尝试
+    try {
+        let htmlContent = '';
+        try {
+            // 策略1：先尝试直接抓取（针对同源或允许跨域的站点）
+            const res = await fetch(urlText);
+            htmlContent = await res.text();
+        } catch (e) {
+            // 策略2：跨域被阻，自动通过公共免签万能 CORS 沙箱网关进行兜底中转
+            downloaderStatus.textContent = '🔄 触发跨域限制，正在启用安全沙箱通道二次解析...';
+            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(urlText)}`;
+            const res = await fetch(proxyUrl);
+            const json = await res.json();
+            htmlContent = json.contents;
+        }
+
+        if (!htmlContent) throw new Error("未能获取到网页源码内容");
+
+        // 构建解析基础 BaseURL 保证相对路径转换为绝对路径
+        const urlObj = new URL(urlText);
+        const baseUrl = urlObj.origin + urlObj.pathname;
+
+        // 正则表达式资源多态检索
+        const imgRegex = /<img[^>]+src=["']([^"']+)["']/g;
+        const videoRegex = /<video[^>]+src=["']([^"']+)["']/g;
+        const audioRegex = /<audio[^>]+src=["']([^"']+)["']/g;
+        const sourceRegex = /<source[^>]+src=["']([^"']+)["']/g;
+        // 扩展匹配：部分网页背景图
+        const bgRegex = /url\(["']?([^"')]+)["']?\)/g;
+
+        let match;
+        const seenUrls = new Set();
+
+        const addRes = (rawUrl, type) => {
+            if (!rawUrl || rawUrl.startsWith('data:')) return; // 过滤 base64
+            try {
+                const absoluteUrl = new URL(rawUrl, baseUrl).href;
+                if (!seenUrls.has(absoluteUrl)) {
+                    seenUrls.add(absoluteUrl);
+                    let name = absoluteUrl.substring(absoluteUrl.lastIndexOf('/') + 1).split('?')[0] || `${type}_res`;
+                    if(!name.includes('.')) {
+                        name += type === 'image' ? '.jpg' : (type === 'video' ? '.mp4' : '.mp3');
+                    }
+                    discoveredResources.push({ url: absoluteUrl, type: type, name: name });
+                }
+            } catch(err) {}
+        };
+
+        while ((match = imgRegex.exec(htmlContent)) !== null) addRes(match[1], 'image');
+        while ((match = videoRegex.exec(htmlContent)) !== null) addRes(match[1], 'video');
+        while ((match = audioRegex.exec(htmlContent)) !== null) addRes(match[1], 'audio');
+        while ((match = sourceRegex.exec(htmlContent)) !== null) {
+            let srcUrl = match[1];
+            let type = srcUrl.includes('mp4') || srcUrl.includes('webm') ? 'video' : 'audio';
+            addRes(srcUrl, type);
+        }
+        while ((match = bgRegex.exec(htmlContent)) !== null) {
+            if(/\.(jpg|jpeg|png|gif|webp)/i.test(match[1])) addRes(match[1], 'image');
+        }
+
+        if (discoveredResources.length === 0) {
+            downloaderStatus.textContent = '⚠️ 网页解析完毕，但未发现明显的标准图片、视频或音频资源（可能网页属于动态渲染）。';
+        } else {
+            downloaderStatus.textContent = `✨ 成功嗅探出 ${discoveredResources.length} 个媒体文件！已按类型分类归档。`;
+            renderDiscoveredResources();
+        }
+
+    } catch (err) {
+        console.error(err);
+        downloaderStatus.textContent = '❌ 解析失败：目标网站拒绝了本地访问请求，或输入了非标准网址。';
+    }
+}
+
+function renderDiscoveredResources() {
+    resDisplayArea.style.display = 'block';
+    
+    // 更新计数标签
+    const counts = { all: discoveredResources.length, image: 0, video: 0, audio: 0 };
+    discoveredResources.forEach(r => counts[r.type]++);
+    
+    document.getElementById('count-all').textContent = counts.all;
+    document.getElementById('count-image').textContent = counts.image;
+    document.getElementById('count-video').textContent = counts.video;
+    document.getElementById('count-audio').textContent = counts.audio;
+
+    filterAndRenderGrid();
+}
+
+function switchResTab(tabType) {
+    currentActiveTab = tabType;
+    const tabs = document.querySelectorAll('.res-tab');
+    tabs.forEach(t => t.classList.remove('active'));
+    event.target.classList.add('active');
+    filterAndRenderGrid();
+}
+
+function filterAndRenderGrid() {
+    resGridContainer.innerHTML = '';
+    const filtered = discoveredResources.filter(r => currentActiveTab === 'all' || r.type === currentActiveTab);
+
+    filtered.forEach(res => {
+        const card = document.createElement('div');
+        card.className = 'res-card';
+
+        let previewHtml = '';
+        if (res.type === 'image') {
+            previewHtml = `<img src="${res.url}" onerror="this.src='data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\'><text x=\'20\' y=\'55\' font-size=\'12\' fill=\'%23aaa\'>图片预览失败</text></svg>'">`;
+        } else if (res.type === 'video') {
+            previewHtml = `<video src="${res.url}" controls preload="metadata"></video>`;
+        } else {
+            previewHtml = `🎵`;
+        }
+
+        // 强力跨域安全下载策略 (针对防盗链或非同源文件采用新标签页沙箱降级机制)
+        card.innerHTML = `
+            <div class="res-preview">${previewHtml}</div>
+            <div class="res-info" title="${res.url}"><strong>名称:</strong> ${res.name}</div>
+            <button class="btn-download" onclick="triggerDirectDownload('${res.url}', '${res.name}')">💾 保存到本地</button>
+        `;
+        resGridContainer.appendChild(card);
+    });
+}
+
+function triggerDirectDownload(url, filename) {
+    // 策略A：尝试纯前端跨域安全 Blob 下载
+    fetch(url, { method: 'GET', mode: 'cors', credentials: 'omit' })
+        .then(res => {
+            if (!res.ok) throw new Error();
+            return res.blob();
+        })
+        .then(blob => {
+            const localUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = localUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(localUrl);
+        })
+        .catch(() => {
+            // 策略B：降级为原生态跨域反盗链新标签页沙箱机制（防止被主页同源 Referer 拦截）
+            const relValue = "noreferrer noopener";
+            const a = document.createElement('a');
+            a.href = url;
+            a.target = '_blank';
+            a.rel = relValue;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
 }
 
 // ==================== 底层公用共享分配器和自适应引擎 ====================
