@@ -117,7 +117,7 @@
             font-size: 13px;
         }
         .settings-bar input[type="number"] { width: 65px; }
-        .settings-bar input[type="text"] { width: 140px; text-align: left; }
+        .settings-bar input[type="text"] { width: 110px; text-align: left; }
         .settings-bar input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
 
         /* --- 上传区域及拖拽激活样式 --- */
@@ -268,7 +268,19 @@
                 <input type="number" id="cutterSizeInput" value="15" min="1"><span>KB 内</span>
             </div>
             <div class="setting-item">
-                <label for="namePatternInput">命名格式：</label>
+                <label for="folderNamingMode">文件夹命名：</label>
+                <select id="folderNamingMode">
+                    <option value="origin">原图名称</option>
+                    <option value="numeric">数字 (1, 2, 3...)</option>
+                    <option value="alphabet">字母 (a, b, c...)</option>
+                </select>
+            </div>
+            <div class="setting-item">
+                <label for="folderPrefixInput">文件夹前缀：</label>
+                <input type="text" id="folderPrefixInput" value="" placeholder="选填，如 Level_">
+            </div>
+            <div class="setting-item">
+                <label for="namePatternInput">图片命名：</label>
                 <input type="text" id="namePatternInput" value="{num}">
             </div>
             <div class="setting-item">
@@ -397,67 +409,42 @@ function goHome() {
     resetVideoWorkspace();
 }
 
-// ==================== 🛠️ 全局拖拽拦截与绑定优化 ====================
-// 核心：强行阻止浏览器全局文件拖放引起的默认刷新/跳转行为
+// ==================== 全局拖拽拦截与绑定优化 ====================
 window.addEventListener('dragover', function(e) { e.preventDefault(); }, false);
 window.addEventListener('drop', function(e) { e.preventDefault(); }, false);
 
-// 抽象封装：为任意指定区域和Input输入框绑定拖拽监听
 function setupDragAndDrop(zoneId, inputId, customProcessHandler = null) {
     const zone = document.getElementById(zoneId);
     const input = document.getElementById(inputId);
-
     if (!zone || !input) return;
 
-    // 当文件拖入当前敏感区域上方
-    zone.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        zone.classList.add('dragover');
-    });
-
-    // 当文件离开该区域
-    zone.addEventListener('dragleave', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        zone.classList.remove('dragover');
-    });
-
-    // 当文件在区域内释放
+    zone.addEventListener('dragover', (e) => { e.preventDefault(); e.stopPropagation(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', (e) => { e.preventDefault(); e.stopPropagation(); zone.classList.remove('dragover'); });
     zone.addEventListener('drop', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        zone.classList.remove('dragover');
-
-        const dt = e.dataTransfer;
-        const files = dt.files;
-
+        e.preventDefault(); e.stopPropagation(); zone.classList.remove('dragover');
+        const dt = e.dataTransfer; const files = dt.files;
         if (files && files.length > 0) {
-            if (customProcessHandler) {
-                // 如果传入了特异性处理引擎，则直驱引擎执行（如视频）
-                customProcessHandler(files);
-            } else {
-                // 否则同步映射模拟到标准的 Input 节点，触发系统原生 change 逻辑（如多图切图）
-                input.files = files;
-                const changeEvent = new Event('change', { bubbles: true });
-                input.dispatchEvent(changeEvent);
-            }
+            if (customProcessHandler) { customProcessHandler(files); } 
+            else { input.files = files; const changeEvent = new Event('change', { bubbles: true }); input.dispatchEvent(changeEvent); }
         }
     });
 }
 
-// 页面加载完成后，全自动化挂载所有拖拽接收锚点
 window.addEventListener('DOMContentLoaded', () => {
-    // 1. 挂载切割压缩模块
     setupDragAndDrop('cutterDropZone', 'cutterFileInput');
-    // 2. 挂载单图保真压缩模块
     setupDragAndDrop('compressorDropZone', 'compressorFileInput');
-    // 3. 挂载视频转序列帧模块 (直驱核心转换引擎)
-    setupDragAndDrop('videoDropZone', 'videoFileInput', (files) => {
-        processVideoFrameEngine(files[0]);
-    });
+    setupDragAndDrop('videoDropZone', 'videoFileInput', (files) => { processVideoFrameEngine(files[0]); });
 });
 
+// 辅助工具：将数字索引转为 excel 式的字母命名（0->a, 25->z, 26->aa, 27->ab）
+function convertToAlphabet(index) {
+    let columnName = "";
+    while (index >= 0) {
+        columnName = String.fromCharCode((index % 26) + 97) + columnName;
+        index = Math.floor(index / 26) - 1;
+    }
+    return columnName;
+}
 
 // ==================== 核心逻辑一：切割压缩模块 ====================
 const cutterFileInput = document.getElementById('cutterFileInput');
@@ -465,42 +452,66 @@ const cutterMasterContainer = document.getElementById('cutterMasterContainer');
 const cutterStatus = document.getElementById('cutterStatus');
 const cutterActionBar = document.getElementById('cutterActionBar');
 const cutterSizeInput = document.getElementById('cutterSizeInput');
+const folderNamingMode = document.getElementById('folderNamingMode');
+const folderPrefixInput = document.getElementById('folderPrefixInput');
 const namePatternInput = document.getElementById('namePatternInput');
 const gridSelect = document.getElementById('gridSelect');
 const zipCheckbox = document.getElementById('zipCheckbox');
 const cutterDownloadBtn = document.getElementById('cutterDownloadBtn');
-let cutterDownloadQueue = []; let globalUploadedFiles = [];
+let cutterDownloadQueue = [];
+
 cutterFileInput.addEventListener('change', handleCutterBatchFiles);
 
 function resetCutterWorkspace() {
     cutterFileInput.value = ''; cutterMasterContainer.innerHTML = ''; cutterStatus.textContent = '';
-    cutterActionBar.style.display = 'none'; cutterDownloadQueue = []; globalUploadedFiles = [];
+    cutterActionBar.style.display = 'none'; cutterDownloadQueue = [];
 }
 function toggleCutterDownloadMode() {
     const isZip = zipCheckbox.checked;
     cutterDownloadBtn.textContent = isZip ? "⬇️ 一键下载所有打包切图 (ZIP)" : "⬇️ 顺序下载全部图片的所有文件";
     if (isZip) cutterDownloadBtn.classList.add('zip-mode'); else cutterDownloadBtn.classList.remove('zip-mode');
 }
+
 function handleCutterBatchFiles(e) {
     const files = Array.from(e.target.files); if (files.length === 0) return;
-    cutterMasterContainer.innerHTML = ''; cutterDownloadQueue = []; globalUploadedFiles = []; cutterActionBar.style.display = 'none';
+    cutterMasterContainer.innerHTML = ''; cutterDownloadQueue = []; cutterActionBar.style.display = 'none';
     cutterStatus.textContent = `发现 ${files.length} 张图片，正在初始化任务...`;
-    const gridSize = parseInt(gridSelect.value); const maxByteSize = (parseFloat(cutterSizeInput.value) || 15) * 1024;
-    const totalExpectedSegments = files.length * gridSize * gridSize; let overallCompletedSegments = 0;
+    
+    const gridSize = parseInt(gridSelect.value); 
+    const maxByteSize = (parseFloat(cutterSizeInput.value) || 15) * 1024;
+    const totalExpectedSegments = files.length * gridSize * gridSize; 
+    let overallCompletedSegments = 0;
+    
     let pattern = namePatternInput.value.trim() || "{num}";
+    let namingMode = folderNamingMode.value;
+    let folderPrefix = folderPrefixInput.value.trim().replace(/[\\/:*?"<>|]/g, "_");
+
     files.forEach((file, fileIdx) => {
-        const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name; globalUploadedFiles.push(baseName);
-        const batchBox = document.createElement('div'); batchBox.className = 'batch-wrapper';
-        batchBox.innerHTML = `<div class="batch-title">🖼️ 原图 [${fileIdx + 1}]: ${file.name}</div><div class="grid-output" id="grid_box_${fileIdx}" style="grid-template-columns: repeat(${gridSize}, 1fr)"></div>`;
-        cutterMasterContainer.appendChild(batchBox); const currentGridBox = document.getElementById(`grid_box_${fileIdx}`);
+        const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+        
+        // 计算当前图片应该归属的 ZIP 内部文件夹名字
+        let targetedFolderName = baseName;
+        if (namingMode === 'numeric') {
+            targetedFolderName = String(fileIdx + 1);
+        } else if (namingMode === 'alphabet') {
+            targetedFolderName = convertToAlphabet(fileIdx);
+        }
+        targetedFolderName = folderPrefix + targetedFolderName; // 挂载用户可选的前缀
+
+        const batchBox = document.createElement('div'); 
+        batchBox.className = 'batch-wrapper';
+        batchBox.innerHTML = `<div class="batch-title">🖼️ 分配映射位置 📁 [ ${targetedFolderName} ] &nbsp; (源文件: ${file.name})</div><div class="grid-output" id="grid_box_${fileIdx}" style="grid-template-columns: repeat(${gridSize}, 1fr)"></div>`;
+        cutterMasterContainer.appendChild(batchBox); 
+        
+        const currentGridBox = document.getElementById(`grid_box_${fileIdx}`);
         const reader = new FileReader();
         reader.onload = function(event) {
             const img = new Image();
             img.onload = function() {
-                sliceSingleImgInBatch(img, baseName, gridSize, maxByteSize, pattern, currentGridBox, () => {
+                sliceSingleImgInBatch(img, baseName, targetedFolderName, gridSize, maxByteSize, pattern, currentGridBox, () => {
                     overallCompletedSegments += (gridSize * gridSize);
                     if (overallCompletedSegments === totalExpectedSegments) {
-                        cutterStatus.textContent = `✨ 批量处理成功！共 ${files.length} 张原图，已切出 ${totalExpectedSegments} 张达标分块。`;
+                        cutterStatus.textContent = `✨ 批量处理成功！已切出 ${totalExpectedSegments} 张高保真切片。`;
                         cutterActionBar.style.display = 'block';
                     }
                 });
@@ -508,11 +519,13 @@ function handleCutterBatchFiles(e) {
         }; reader.readAsDataURL(file);
     });
 }
-function sliceSingleImgInBatch(img, baseName, gridSize, maxByteSize, pattern, targetDOMContainer, onImgAllDoneCallback) {
+
+function sliceSingleImgInBatch(img, baseName, targetedFolderName, gridSize, maxByteSize, pattern, targetDOMContainer, onImgAllDoneCallback) {
     let srcX = 0, srcY = 0, srcWidth = img.width, srcHeight = img.height; const targetRatio = 3 / 4;
     if (img.width / img.height > targetRatio) { srcWidth = img.height * targetRatio; srcX = (img.width - srcWidth) / 2; } 
     else { srcHeight = img.width / targetRatio; srcY = (img.height - srcHeight) / 2; }
     const subWidth = srcWidth / gridSize; const subHeight = srcHeight / gridSize; const segmentsCount = gridSize * gridSize; let localCompleted = 0;
+    
     for (let r = 0; r < gridSize; r++) {
         for (let c = 0; c < gridSize; c++) {
             const index = r * gridSize + c; const numId = String(index + 1).padStart(2, '0'); const posX = srcX + (c * subWidth); const posY = srcY + (r * subHeight);
@@ -522,7 +535,10 @@ function sliceSingleImgInBatch(img, baseName, gridSize, maxByteSize, pattern, ta
                 const url = URL.createObjectURL(blob); const kbSize = (blob.size / 1024).toFixed(2);
                 let dynamicName = pattern.replace(/{name}/g, baseName).replace(/{num}/g, numId).replace(/[\\/:*?"<>|]/g, "_");
                 const finalFileName = `${dynamicName}.jpeg`;
-                cutterDownloadQueue.push({ url, blob, folder: baseName, fileName: finalFileName });
+                
+                // 将计算好的文件夹路径和文件名存入队列
+                cutterDownloadQueue.push({ url, blob, folder: targetedFolderName, fileName: finalFileName });
+                
                 const item = document.createElement('div'); item.className = 'img-item'; item.setAttribute('data-id', numId);
                 item.innerHTML = `<img src="${url}"><div class="info"><strong style="word-break: break-all;">${finalFileName}</strong><br>${kbSize} KB</div><a class="btn-download" href="${url}" download="${finalFileName}">下载</a>`;
                 targetDOMContainer.appendChild(item); localCompleted++;
@@ -531,18 +547,23 @@ function sliceSingleImgInBatch(img, baseName, gridSize, maxByteSize, pattern, ta
         }
     }
 }
+
 function executeCutterDownload() {
     if (cutterDownloadQueue.length === 0) return;
     if (zipCheckbox.checked) {
-        const zip = new JSZip(); cutterDownloadQueue.forEach(task => { zip.folder(task.folder).file(task.fileName, task.blob); });
-        let userRawPattern = namePatternInput.value.trim(); let zipTitle = "";
-        let extractedPrefix = userRawPattern.replace(/{num}/g, "").replace(/{name}/g, "").replace(/[\\/:*?"<>|]/g, "").trim();
-        if (extractedPrefix && extractedPrefix !== "_" && extractedPrefix !== "-") zipTitle = extractedPrefix;
-        else if (globalUploadedFiles.length === 1) zipTitle = `${globalUploadedFiles[0]}_切图打包`;
-        else zipTitle = "批量切图大合集";
-        zipTitle = zipTitle.replace(/[\\/:*?"<>|]/g, "_") || "切图合集";
-        cutterStatus.textContent = '正在多图归类、打包为大压缩包中...';
-        zip.generateAsync({ type: "blob" }).then(content => { saveAs(content, `${zipTitle}.zip`); cutterStatus.textContent = `✨ 成功！压缩包已重命名为【${zipTitle}.zip】并下载。`; });
+        const zip = new JSZip(); 
+        cutterDownloadQueue.forEach(task => { 
+            zip.folder(task.folder).file(task.fileName, task.blob); 
+        });
+        
+        let zipTitle = (folderPrefixInput.value.trim() || "批量切图") + "_工具箱打包";
+        zipTitle = zipTitle.replace(/[\\/:*?"<>|]/g, "_");
+        
+        cutterStatus.textContent = '正在整合目录、打包为本地压缩包中...';
+        zip.generateAsync({ type: "blob" }).then(content => { 
+            saveAs(content, `${zipTitle}.zip`); 
+            cutterStatus.textContent = `✨ 成功！已安全导出压缩包【${zipTitle}.zip】。`; 
+        });
     } else {
         cutterDownloadQueue.forEach((task, i) => { if(!task) return; setTimeout(() => { const a = document.createElement('a'); a.href = task.url; a.download = task.fileName; document.body.appendChild(a); a.click(); document.body.removeChild(a); }, i * 180); });
     }
@@ -556,17 +577,9 @@ const compressorActionBar = document.getElementById('compressorActionBar');
 const compressorSizeInput = document.getElementById('compressorSizeInput');
 let singleCompressResult = null; let compressorActiveImg = null;
 
-// 同时侦听点击文件上传的变化
-compressorFileInput.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) handleIncomingImgData(file);
-});
+compressorFileInput.addEventListener('change', (e) => { const file = e.target.files[0]; if (file) handleIncomingImgData(file); });
+function resetCompressorWorkspace() { compressorFileInput.value = ''; compressorOutputContainer.innerHTML = ''; compressorStatus.textContent = ''; compressorActionBar.style.display = 'none'; singleCompressResult = null; compressorActiveImg = null; }
 
-function resetCompressorWorkspace() {
-    compressorFileInput.value = ''; compressorOutputContainer.innerHTML = ''; compressorStatus.textContent = ''; compressorActionBar.style.display = 'none'; singleCompressResult = null; compressorActiveImg = null;
-}
-
-// 统一封装单图传入接口
 function handleIncomingImgData(file) {
     compressorStatus.textContent = '载入中...'; compressorActionBar.style.display = 'none'; compressorOutputContainer.innerHTML = '';
     const reader = new FileReader();
@@ -576,14 +589,13 @@ function handleIncomingImgData(file) {
         img.src = event.target.result;
     }; reader.readAsDataURL(file);
 }
-
 function processSingleCompress(img) {
     compressorStatus.textContent = '正在计算原图最佳压缩比例...'; compressorOutputContainer.innerHTML = ''; singleCompressResult = null;
     const maxByteSize = (parseFloat(compressorSizeInput.value) || 100) * 1024; const canvas = document.createElement('canvas'); const ctx = canvas.getContext('2d'); canvas.width = img.width; canvas.height = img.height; ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
     compressEngine(canvas, 0.98, maxByteSize, (blob) => {
         const url = URL.createObjectURL(blob); const kbSize = (blob.size / 1024).toFixed(2); singleCompressResult = { url, fileName: `compressed_image.jpeg` };
         const item = document.createElement('div'); item.className = 'img-item'; item.style.maxWidth = "80%";
-        item.innerHTML = `<img src="${url}"><div class="info"><strong>等比例压缩输出</strong><br>分辨率: ${canvas.width} × ${canvas.height}<br>最终体积: ${kbSize} KB</div>`;
+        item.innerHTML = `<img src="${url}"><div class="info"><strong>等比例压缩输出</strong><br>最终体积: ${kbSize} KB</div>`;
         compressorOutputContainer.appendChild(item); compressorStatus.textContent = `✨ 成功！图片已成功压至目标限制内。`; compressorActionBar.style.display = 'block';
     });
 }
@@ -604,11 +616,7 @@ async function analyzeTargetUrl() {
     try {
         let htmlContent = '';
         try { const res = await fetch(urlText); htmlContent = await res.text(); } 
-        catch (e) {
-            downloaderStatus.textContent = '🔄 触发跨域限制，正在启用安全沙箱通道二次解析...';
-            const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(urlText)}`; const res = await fetch(proxyUrl); const json = await res.json(); htmlContent = json.contents;
-        }
-        if (!htmlContent) throw new Error("未能获取到网页源码内容");
+        catch (e) { const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(urlText)}`; const res = await fetch(proxyUrl); const json = await res.json(); htmlContent = json.contents; }
         const urlObj = new URL(urlText); const baseUrl = urlObj.origin + urlObj.pathname;
         const imgRegex = /<img[^>]+src=["']([^"']+)["']/g; const videoRegex = /<video[^>]+src=["']([^"']+)["']/g; const audioRegex = /<audio[^>]+src=["']([^"']+)["']/g; const sourceRegex = /<source[^>]+src=["']([^"']+)["']/g; const bgRegex = /url\(["']?([^"')]+)["']?\)/g;
         let match; const seenUrls = new Set();
@@ -626,161 +634,66 @@ async function analyzeTargetUrl() {
         while ((match = imgRegex.exec(htmlContent)) !== null) addRes(match[1], 'image');
         while ((match = videoRegex.exec(htmlContent)) !== null) addRes(match[1], 'video');
         while ((match = audioRegex.exec(htmlContent)) !== null) addRes(match[1], 'audio');
-        while ((match = sourceRegex.exec(htmlContent)) !== null) { let srcUrl = match[1]; let type = srcUrl.includes('mp4') || srcUrl.includes('webm') ? 'video' : 'audio'; addRes(srcUrl, type); }
-        while ((match = bgRegex.exec(htmlContent)) !== null) { if(/\.(jpg|jpeg|png|gif|webp)/i.test(match[1])) addRes(match[1], 'image'); }
-        if (discoveredResources.length === 0) downloaderStatus.textContent = '⚠️ 网页解析完毕，但未发现明显的标准图片、视频或音频资源。';
-        else { downloaderStatus.textContent = `✨ 成功嗅探出 ${discoveredResources.length} 个媒体文件！已按类型分类归档。`; renderDiscoveredResources(); }
-    } catch (err) { downloaderStatus.textContent = '❌ 解析失败：目标网站拒绝了本地访问请求，或输入了非标准网址。'; }
+        if (discoveredResources.length === 0) downloaderStatus.textContent = '⚠️ 未发现明显的标准媒体资源。';
+        else { downloaderStatus.textContent = `✨ 成功嗅探出 ${discoveredResources.length} 个媒体文件！`; renderDiscoveredResources(); }
+    } catch (err) { downloaderStatus.textContent = '❌ 解析失败。'; }
 }
-function renderDiscoveredResources() {
-    resDisplayArea.style.display = 'block'; const counts = { all: discoveredResources.length, image: 0, video: 0, audio: 0 }; discoveredResources.forEach(r => counts[r.type]++);
-    document.getElementById('count-all').textContent = counts.all; document.getElementById('count-image').textContent = counts.image; document.getElementById('count-video').textContent = counts.video; document.getElementById('count-audio').textContent = counts.audio;
-    filterAndRenderGrid();
-}
+function renderDiscoveredResources() { resDisplayArea.style.display = 'block'; const counts = { all: discoveredResources.length, image: 0, video: 0, audio: 0 }; discoveredResources.forEach(r => counts[r.type]++); document.getElementById('count-all').textContent = counts.all; document.getElementById('count-image').textContent = counts.image; document.getElementById('count-video').textContent = counts.video; document.getElementById('count-audio').textContent = counts.audio; filterAndRenderGrid(); }
 function switchResTab(tabType) { currentActiveTab = tabType; const tabs = document.querySelectorAll('.res-tab'); tabs.forEach(t => t.classList.remove('active')); event.target.classList.add('active'); filterAndRenderGrid(); }
-function filterAndRenderGrid() {
-    resGridContainer.innerHTML = ''; const filtered = discoveredResources.filter(r => currentActiveTab === 'all' || r.type === currentActiveTab);
-    filtered.forEach(res => {
-        const card = document.createElement('div'); card.className = 'res-card';
-        let previewHtml = res.type === 'image' ? `<img src="${res.url}">` : (res.type === 'video' ? `<video src="${res.url}" controls preload="metadata"></video>` : `🎵`);
-        card.innerHTML = `<div class="res-preview">${previewHtml}</div><div class="res-info" title="${res.url}"><strong>名称:</strong> ${res.name}</div><button class="btn-download" onclick="triggerDirectDownload('${res.url}', '${res.name}')">💾 保存到本地</button>`;
-        resGridContainer.appendChild(card);
-    });
-}
-function triggerDirectDownload(url, filename) {
-    fetch(url, { method: 'GET', mode: 'cors', credentials: 'omit' }).then(res => { if (!res.ok) throw new Error(); return res.blob(); }).then(blob => { const localUrl = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = localUrl; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(localUrl); })
-    .catch(() => { const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = "noreferrer noopener"; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); });
-}
+function filterAndRenderGrid() { resGridContainer.innerHTML = ''; const filtered = discoveredResources.filter(r => currentActiveTab === 'all' || r.type === currentActiveTab); filtered.forEach(res => { const card = document.createElement('div'); card.className = 'res-card'; let previewHtml = res.type === 'image' ? `<img src="${res.url}">` : (res.type === 'video' ? `<video src="${res.url}" controls preload="metadata"></video>` : `🎵`); card.innerHTML = `<div class="res-preview">${previewHtml}</div><div class="res-info"><strong>名称:</strong> ${res.name}</div><button class="btn-download" onclick="triggerDirectDownload('${res.url}', '${res.name}')">💾 保存到本地</button>`; resGridContainer.appendChild(card); }); }
+function triggerDirectDownload(url, filename) { fetch(url, { method: 'GET', mode: 'cors' }).then(res => res.blob()).then(blob => { const localUrl = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = localUrl; a.download = filename; document.body.appendChild(a); a.click(); document.body.removeChild(a); }).catch(() => { const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.click(); }); }
 
 // ==================== 业务逻辑四：视频转序列帧图片模块 ====================
-const videoFileInput = document.getElementById('videoFileInput');
-const videoStatus = document.getElementById('videoStatus');
-const videoActionBar = document.getElementById('videoActionBar');
-const videoGridContainer = document.getElementById('videoGridContainer');
-const videoOutputWrapper = document.getElementById('videoOutputWrapper');
-const videoFrameCountInput = document.getElementById('videoFrameCountInput');
-const videoFrameSizeInput = document.getElementById('videoFrameSizeInput');
-const videoNamePrefix = document.getElementById('videoNamePrefix');
+const videoFileInput = document.getElementById('videoFileInput'); const videoStatus = document.getElementById('videoStatus'); const videoActionBar = document.getElementById('videoActionBar'); const videoGridContainer = document.getElementById('videoGridContainer'); const videoOutputWrapper = document.getElementById('videoOutputWrapper'); const videoFrameCountInput = document.getElementById('videoFrameCountInput'); const videoFrameSizeInput = document.getElementById('videoFrameSizeInput'); const videoNamePrefix = document.getElementById('videoNamePrefix');
 let videoZipQueue = []; 
+videoFileInput.addEventListener('change', (e) => { if (e.target.files[0]) processVideoFrameEngine(e.target.files[0]); });
+function resetVideoWorkspace() { videoFileInput.value = ''; videoStatus.textContent = ''; videoActionBar.style.display = 'none'; videoGridContainer.innerHTML = ''; videoOutputWrapper.style.display = 'none'; videoZipQueue = []; }
 
-// 监听常规点击上传的变化
-videoFileInput.addEventListener('change', (e) => {
-    if (e.target.files[0]) processVideoFrameEngine(e.target.files[0]);
-});
-
-function resetVideoWorkspace() {
-    videoFileInput.value = ''; videoStatus.textContent = ''; videoActionBar.style.display = 'none';
-    videoGridContainer.innerHTML = ''; videoOutputWrapper.style.display = 'none'; videoZipQueue = [];
-}
-
-// 核心转换调度引擎（支持点击与拖拽传入统一调度）
 function processVideoFrameEngine(file) {
     if (!file) return;
     videoGridContainer.innerHTML = ''; videoOutputWrapper.style.display = 'none'; videoActionBar.style.display = 'none'; videoZipQueue = [];
-    videoStatus.textContent = '🎬 正在加载本地视频，计算轨道帧率基础信息...';
-
-    const targetFrameCount = parseInt(videoFrameCountInput.value) || 10;
-    const maxKByteSize = (parseFloat(videoFrameSizeInput.value) || 50) * 1024;
-    const prefixName = videoNamePrefix.value.trim() || "frame";
-
-    const videoNode = document.createElement('video');
-    videoNode.src = URL.createObjectURL(file);
-    videoNode.muted = true; videoNode.playsInline = true;
-
+    videoStatus.textContent = '🎬 正在加载本地视频...';
+    const targetFrameCount = parseInt(videoFrameCountInput.value) || 10; const maxKByteSize = (parseFloat(videoFrameSizeInput.value) || 50) * 1024; const prefixName = videoNamePrefix.value.trim() || "frame";
+    const videoNode = document.createElement('video'); videoNode.src = URL.createObjectURL(file); videoNode.muted = true; videoNode.playsInline = true;
     videoNode.addEventListener('loadedmetadata', async () => {
-        const duration = videoNode.duration;
-        if (!duration || isNaN(duration)) {
-            videoStatus.textContent = '❌ 错误：无法获取该视频的有效总时长。';
-            return;
-        }
+        const duration = videoNode.duration; if (!duration || isNaN(duration)) { videoStatus.textContent = '❌ 无法获取视频时长。'; return; }
         videoOutputWrapper.style.display = 'block';
-        videoStatus.textContent = `视频加载成功 (${videoNode.videoWidth}x${videoNode.videoHeight})。开始提取共 ${targetFrameCount} 张目标序列图像...`;
-
-        const interval = duration / (targetFrameCount + 1);
-        let capturedCount = 0;
-
+        const interval = duration / (targetFrameCount + 1); let capturedCount = 0;
         for (let i = 1; i <= targetFrameCount; i++) {
-            const targetTime = i * interval;
-            videoStatus.textContent = `⏳ 正在精确抽帧：第 ${i} / ${targetFrameCount} 张 (时间轴点: ${targetTime.toFixed(2)}s)...`;
-            
+            const targetTime = i * interval; videoStatus.textContent = `⏳ 正在抽帧：第 ${i} / ${targetFrameCount} 张...`;
             await seekVideoToTime(videoNode, targetTime);
-            
-            const canvas = document.createElement('canvas');
-            canvas.width = videoNode.videoWidth; canvas.height = videoNode.videoHeight;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(videoNode, 0, 0, canvas.width, canvas.height);
-
-            const indexStr = String(i).padStart(3, '0');
-            const finalImageName = `${prefixName}_${indexStr}.jpeg`;
-
+            const canvas = document.createElement('canvas'); canvas.width = videoNode.videoWidth; canvas.height = videoNode.videoHeight;
+            const ctx = canvas.getContext('2d'); ctx.drawImage(videoNode, 0, 0, canvas.width, canvas.height);
+            const indexStr = String(i).padStart(3, '0'); const finalImageName = `${prefixName}_${indexStr}.jpeg`;
             await new Promise((resolve) => {
                 compressEngine(canvas, 0.95, maxKByteSize, (blob) => {
-                    const blobUrl = URL.createObjectURL(blob);
-                    const realKB = (blob.size / 1024).toFixed(1);
+                    const blobUrl = URL.createObjectURL(blob); const realKB = (blob.size / 1024).toFixed(1);
                     videoZipQueue.push({ blob: blob, fileName: finalImageName });
-
-                    const card = document.createElement('div');
-                    card.className = 'res-card';
-                    card.innerHTML = `
-                        <div class="res-preview"><img src="${blobUrl}"></div>
-                        <div class="res-info"><strong>${finalImageName}</strong><br>最终体积: ${realKB} KB</div>
-                        <a class="btn-download" href="${blobUrl}" download="${finalImageName}">单帧下载</a>
-                    `;
-                    videoGridContainer.appendChild(card);
-                    capturedCount++;
-                    resolve();
+                    const card = document.createElement('div'); card.className = 'res-card';
+                    card.innerHTML = `<div class="res-preview"><img src="${blobUrl}"></div><div class="res-info"><strong>${finalImageName}</strong><br>${realKB} KB</div><a class="btn-download" href="${blobUrl}" download="${finalImageName}">单帧下载</a>`;
+                    videoGridContainer.appendChild(card); capturedCount++; resolve();
                 });
             });
         }
-        videoStatus.textContent = `✨ 成功完成视频抽帧！共截取 ${capturedCount} 张高保真图像，单张体积完全锁定在设定档位内！`;
-        videoActionBar.style.display = 'block';
-        URL.revokeObjectURL(videoNode.src);
-    });
-
-    videoNode.addEventListener('error', () => {
-        videoStatus.textContent = '❌ 解码失败：浏览器无法原生解析此视频格式，推荐使用标准 MP4 (H.264) 文件。';
+        videoStatus.textContent = `✨ 成功提取 ${capturedCount} 张序列图像！`; videoActionBar.style.display = 'block'; URL.revokeObjectURL(videoNode.src);
     });
 }
-
-function seekVideoToTime(videoElement, time) {
-    return new Promise((resolve) => {
-        const onSeeked = () => { videoElement.removeEventListener('seeked', onSeeked); resolve(); };
-        videoElement.addEventListener('seeked', onSeeked);
-        videoElement.currentTime = time;
-    });
-}
-
-function executeVideoZipDownload() {
-    if (videoZipQueue.length === 0) return;
-    videoStatus.textContent = '🎁 正在整合所有量化后的序列图像，构建 ZIP 归档包...';
-    const zip = new JSZip();
-    videoZipQueue.forEach(item => { zip.file(item.fileName, item.blob); });
-    const zipName = (videoNamePrefix.value.trim() || "video_frames") + "_序列帧合集.zip";
-    zip.generateAsync({ type: "blob" }).then(content => { saveAs(content, zipName); videoStatus.textContent = `✨ 下载成功！已打包至【${zipName}】。`; });
-}
+function seekVideoToTime(videoElement, time) { return new Promise((resolve) => { const onSeeked = () => { videoElement.removeEventListener('seeked', onSeeked); resolve(); }; videoElement.addEventListener('seeked', onSeeked); videoElement.currentTime = time; }); }
+function executeVideoZipDownload() { if (videoZipQueue.length === 0) return; const zip = new JSZip(); videoZipQueue.forEach(item => { zip.file(item.fileName, item.blob); }); const zipName = (videoNamePrefix.value.trim() || "video_frames") + "_序列帧合集.zip"; zip.generateAsync({ type: "blob" }).then(content => { saveAs(content, zipName); videoStatus.textContent = `✨ 已导出【${zipName}】。`; }); }
 
 // ==================== 底层通用智压递归引擎 ====================
 function compressEngine(canvas, quality, maxByteSize, callback) {
     canvas.toBlob((blob) => {
         if (blob.size <= maxByteSize || quality <= 0.1) {
             if (blob.size > maxByteSize) {
-                const nextCanvas = document.createElement('canvas');
-                nextCanvas.width = Math.floor(canvas.width * 0.85);
-                nextCanvas.height = Math.floor(canvas.height * 0.85);
-                const ctx = nextCanvas.getContext('2d');
-                ctx.drawImage(canvas, 0, 0, nextCanvas.width, nextCanvas.height);
+                const nextCanvas = document.createElement('canvas'); nextCanvas.width = Math.floor(canvas.width * 0.85); nextCanvas.height = Math.floor(canvas.height * 0.85);
+                const ctx = nextCanvas.getContext('2d'); ctx.drawImage(canvas, 0, 0, nextCanvas.width, nextCanvas.height);
                 compressEngine(nextCanvas, 0.9, maxByteSize, callback);
             } else { callback(blob); }
         } else { compressEngine(canvas, quality - 0.05, maxByteSize, callback); }
     }, 'image/jpeg', quality);
 }
-
-function sortOutputDOM(container) {
-    const items = Array.from(container.children);
-    items.sort((a, b) => a.getAttribute('data-id').localeCompare(b.getAttribute('data-id')));
-    container.innerHTML = '';
-    items.forEach(item => container.appendChild(item));
-}
+function sortOutputDOM(container) { const items = Array.from(container.children); items.sort((a, b) => a.getAttribute('data-id').localeCompare(b.getAttribute('data-id'))); container.innerHTML = ''; items.forEach(item => container.appendChild(item)); }
 </script>
 
 </body>
