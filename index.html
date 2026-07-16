@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>起始页</title>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    
+    <!-- Marked.js Markdown 解析库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <style id="themeStyle">
+        :root { --bg-color: #f5f5f7; --container-bg: rgba(255, 255, 255, 0.75); --text-color: #1d1d1f; --text-muted: #86868b; --accent-color: #0071e3; --card-bg: rgba(255, 255, 255, 0.65); --card-hover-bg: #ffffff; --border-color: rgba(0, 0, 0, 0.08); --danger-color: #ff3b30; --edit-color: #0071e3; --orange-color: #f56300; --panel-gradient: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(245,245,247,0.9) 100%); --tag-bg: rgba(0, 113, 227, 0.1); --tag-border: rgba(0, 113, 227, 0.2); }
+        body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; background-color: var(--bg-color); background-image: radial-gradient(circle at 50% 0%, #ffffff 0%, #f5f5f7 100%); }
+        .container { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid rgba(255,255,255,0.6); }
+        .card { border-radius: 16px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(255,255,255,0.5); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease; }
+        .card:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 12px 24px rgba(0,0,0,0.08); border-color: rgba(0,113,227,0.3); }
+        .form-input, .form-textarea, .form-select { border-radius: 12px; background: rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.06); transition: all 0.2s; box-shadow: inset 0 1px 3px rgba(0,0,0,0.02); }
+        .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(0,113,227,0.2); background: #fff; }
+        .form-btn { border-radius: 18px; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.05); transition: all 0.3s ease; }
+        .form-btn:hover { transform: scale(1.02); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        header { background: rgba(255,255,255,0.7); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .tab-item { border-radius: 10px; margin-right: 4px; }
+        .tab-item.active { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .apple-card { background: rgba(255,255,255,0.7); backdrop-filter: blur(20px); border-radius: 18px; border: 1px solid rgba(255,255,255,0.6); box-shadow: 0 8px 24px rgba(0,0,0,0.04); }
+        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
+        .fish-tabs { background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.02); }
+        .fish-tab-btn.active { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .category-title { font-weight: 600; }
+    </style>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="header-left">
+            <div class="editable-title-wrap" onclick="editBoardTitle()" title="点击自定义修改名称">
+                <h1 id="boardTitleDisplay">🛠️ 试玩工具箱</h1>
+                <span class="edit-icon">✏️</span>
+            </div>
+            <p>标签版 · 多标签页 · Firebase RTDB 实时同步</p>
+        </div>
+        <div class="header-right">
+            <!-- 🔥 Firebase 同步状态（紧凑药丸，始终在 header 右侧） -->
+            <div id="firebaseSyncBar" class="firebase-sync-bar offline" title="Firebase 同步状态">
+                <span id="syncIcon">🔄</span>
+                <span id="syncText">Firebase RTDB 连接初始化中...</span>
+            </div>
+            <button class="jigsaw-entry-btn" onclick="switchView('jigsaw')" title="进入拼图切割工具">
+                🧩 拼图切割工具
+            </button>
+            <div class="theme-select-box">
+                <span style="font-size: 13px; font-weight: bold;">🎭 主题：</span>
+                <select id="themeSelector" class="form-select" style="width: 140px; padding: 4px 8px;" onchange="switchTheme(this.value)">
+                    <option value="cyberpunk">🔋 赛博朋克</option>
+                    <option value="apple">🍎 苹果原生</option>
+                    <option value="midnight">🌌 深邃星空</option>
+                    <option value="minimalLight">☀️ 明亮极简</option>
+                    <option value="forestGreen">🌲 森林绿意</option>
+                    <option value="neonAurora">🔮 极光霓虹</option>
+                    <option value="darkGold">🍫 优雅黑金</option>
+                </select>
+            </div>
+            <div class="lock-control-box">
+                <div id="lockStatusDot" class="lock-status-dot is-locked"></div>
+                <span id="lockStatusText" style="font-size: 13px; font-weight: bold; color: var(--danger-color);">已开启防关闭保护</span>
+                <button onclick="togglePageLock()" id="lockToggleBtn" class="form-btn red-btn" style="padding: 3px 10px; font-size: 12px;">解除固定</button>
+            </div>
+            <button class="admin-toggle-btn" onclick="toggleAdminDrawer(true)" title="打开管理面板">
+                <span class="plus-icon">+</span> 管理
+            </button>
+            <!-- 🐟页入口图标鱼 -->
+            <button class="fish-entry-btn" onclick="openFishPasswordModal()" title="进入🐟页">
+                🐟
+            </button>
+        </div>
+    </header>
+
+    <!-- ⚙️ 管理抽屉（板块管理 / 添加卡片 / 云端同步） -->
+    <div class="admin-drawer-overlay" id="adminDrawerOverlay" onclick="toggleAdminDrawer(false)"></div>
+    <aside class="admin-drawer" id="adminDrawer" aria-hidden="true">
+        <div class="admin-drawer-header">
+            <h3>⚙️ 管理面板</h3>
+            <button class="admin-drawer-close" onclick="toggleAdminDrawer(false)" title="关闭">✕</button>
+        </div>
+        <div class="admin-drawer-body" id="adminDrawerBody">
+            <!-- 由 JS 动态填充 -->
+        </div>
+    </aside>
+
+    <!-- 🔥 顶部云端同步 + 卡片大小工具栏 -->
+    <div class="sync-toolbar" id="syncToolbar">
+        <div class="sync-toolbar-left">
+            <label class="sync-toggle-label" title="勾选后，所有修改会自动同步到云端">
+                <input type="checkbox" id="autoSyncCheckboxTop" onchange="toggleAutoSync(this.checked)">
+                <span>✅ 自动同步到云端</span>
+            </label>
+            <div class="sync-slider-wrap" title="拖动调整卡片大小（宽+高）">
+                <span class="sync-slider-icon">📐</span>
+                <input type="range" id="cardSizeSliderTop" min="160" max="380" step="10" value="200" style="width:120px;">
+                <span id="cardSizeValueTop" class="sync-slider-value">200px</span>
+            </div>
+        </div>
+        <div class="sync-toolbar-right">
+            <button onclick="forceSyncToCloud()" class="form-btn orange-btn sync-btn">⬆️ 上传到云端</button>
+            <button onclick="forceSyncFromCloud()" class="form-btn blue-btn sync-btn">⬇️ 从云端拉取</button>
+        </div>
+    </div>
+
+    <!-- 🏷️ 标签页导航 -->
+    <div class="tab-nav-bar" id="tabNavBar">
+        <!-- 标签页由 JS 动态生成 -->
+        <div class="tab-add-btn" onclick="createNewTab()" title="新建标签页">+</div>
+    </div>
+
+    <!-- 标签页内容 -->
+    <div class="tab-content-wrapper" id="tabContentWrapper">
+        <!-- 内容由 JS 动态生成 -->
+    </div>
+
+    <!-- 切图页面 -->
+    <div id="jigsawAppPage">
+        <div class="jigsaw-page-header">
+            <div class="jigsaw-page-title">🧩 3:4 比例多图批量智能切图工作台</div>
+            <button class="form-btn blue-btn" onclick="switchView('dashboard')">← 返回主看板</button>
+        </div>
+        <div class="jigsaw-settings-bar">
+            <div class="jigsaw-settings-row">
+                <div class="jigsaw-setting-item">
+                    <span>单图体积上限：</span>
+                    <input type="number" id="jigsawMaxSizeInput" value="25"><span>KB</span>
+                </div>
+                <div class="jigsaw-setting-item">
+                    <span>前缀命名规则：</span>
+                    <div class="jigsaw-mode-options" data-group="jigsawPrefixType" data-default="alpha">
+                        <label class="jigsaw-mode-card selected" data-value="alpha" onclick="selectJigsawMode(this, 'jigsawPrefixType')">
+                            <span class="mode-icon m-2x1"><span></span><span></span></span>
+                            <span>英文 A/B/C</span>
+                            <span class="check-mark">✓</span>
+                        </label>
+                        <label class="jigsaw-mode-card" data-value="number" onclick="selectJigsawMode(this, 'jigsawPrefixType')">
+                            <span class="mode-icon m-2x1"><span></span><span></span></span>
+                            <span>数字 0/1/2</span>
+                            <span class="check-mark">✓</span>
+                        </label>
+                        <input type="radio" name="jigsawPrefixType" value="alpha" checked style="display:none;">
+                        <input type="radio" name="jigsawPrefixType" value="number" style="display:none;">
+                    </div>
+                </div>
+                <div class="jigsaw-setting-item">
+                    <span>默认切割网格：</span>
+                    <div class="jigsaw-mode-options" data-group="jigsawGlobalCutMode" data-default="2x2">
+                        <label class="jigsaw-mode-card selected" data-value="2x2" onclick="selectJigsawMode(this, 'jigsawGlobalCutMode')">
+                            <span class="mode-icon m-2x2"><span></span><span></span><span></span><span></span></span>
+                            <span>2×2 四宫格</span>
+                            <span class="check-mark">✓</span>
+                        </label>
+                        <label class="jigsaw-mode-card" data-value="2x1" onclick="selectJigsawMode(this, 'jigsawGlobalCutMode')">
+                            <span class="mode-icon m-2x1"><span></span><span></span></span>
+                            <span>2×1 横切</span>
+                            <span class="check-mark">✓</span>
+                        </label>
+                        <label class="jigsaw-mode-card" data-value="1x2" onclick="selectJigsawMode(this, 'jigsawGlobalCutMode')">
+                            <span class="mode-icon m-1x2"><span></span><span></span></span>
+                            <span>1×2 竖切</span>
+                            <span class="check-mark">✓</span>
+                        </label>
+                        <input type="radio" name="jigsawGlobalCutMode" value="2x2" checked style="display:none;">
+                        <input type="radio" name="jigsawGlobalCutMode" value="2x1" style="display:none;">
+                        <input type="radio" name="jigsawGlobalCutMode" value="1x2" style="display:none;">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="jigsaw-upload-area" id="jigsawDropZone" onclick="document.getElementById('jigsawFileInput').click()">
+            <span style="font-size: 15px; font-weight: bold; color: var(--accent-color);">点击或将多张图片拖拽到此处进行批量自动切割</span>
+            <input type="file" id="jigsawFileInput" accept="image/*" multiple onchange="handleJigsawFiles(this.files)">
+        </div>
+        <div id="jigsawStatus"></div>
+        <div class="jigsaw-action-bar" id="jigsawActionBar">
+            <button class="form-btn orange-btn" onclick="downloadAllJigsawGroupsZip()">📦 打包全部 ZIP</button>
+            <button class="form-btn red-btn" onclick="clearAllJigsawHistory()">🗑️ 清空历史</button>
+        </div>
+        <div id="jigsawOutputGroupsContainer"></div>
+    </div>
+
+    <!-- 🐟 鱼塘页 -->
+    <div id="fishAppPage" class="apple-page-container" style="display: none;">
+        <div class="apple-nav-bar">
+            <div class="apple-nav-title">🐟 鱼塘空间 (Fish Studio)</div>
+            <div class="fish-tabs">
+                <button class="fish-tab-btn active" onclick="switchFishTab('posts')" id="btnFishTabPosts">📚 已发布文章</button>
+                <button class="fish-tab-btn" onclick="switchFishTab('write')" id="btnFishTabWrite">✍️ 写文章</button>
+                <button class="fish-tab-btn" onclick="switchFishTab('video')" id="btnFishTabVideo">📺 视频区</button>
+            </div>
+            <button class="form-btn blue-btn" onclick="switchView('dashboard')">← 返回主看板</button>
+        </div>
+        
+        <div class="fish-tab-content">
+            <!-- 📚 已发布文章 -->
+            <div id="fishTabPosts" class="fish-tab-pane" style="display: block;">
+                <div class="apple-card">
+                    <h3>📚 已发布文章</h3>
+                    <div id="fishPostsContainer"></div>
+                </div>
+            </div>
+
+            <!-- ✍️ 写文章 -->
+            <div id="fishTabWrite" class="fish-tab-pane" style="display: none;">
+                <div class="apple-card" style="max-width: 800px; margin: 0 auto;">
+                    <h3>✍️ 发布 Markdown 文章</h3>
+                    <div class="form-group">
+                        <label style="font-size:12px; color:var(--text-muted);">文章标题：</label>
+                        <input type="text" id="postTitle" class="form-input" placeholder="输入文章标题...">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size:12px; color:var(--text-muted);">发布日期：</label>
+                        <input type="date" id="postDate" class="form-input">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size:12px; color:var(--text-muted);">文章正文 (支持 Markdown 语法)：</label>
+                        <textarea id="postContent" class="form-textarea" style="min-height:300px;" placeholder="在此输入 Markdown 正文..."></textarea>
+                    </div>
+                    <button class="form-btn" onclick="submitNewPost()" style="width:100%; background: var(--accent-color); color: #000; margin-top: 15px;">立即发布</button>
+                </div>
+            </div>
+            
+            <!-- 📺 视频区 -->
+            <div id="fishTabVideo" class="fish-tab-pane" style="display: none;">
+                <div class="apple-dashboard-grid" style="max-width: 1200px; margin: 0 auto;">
+                    <div class="apple-dashboard-col" style="grid-column: 1 / -1;">
+                        <div class="apple-card">
+                            <h3>📺 视频直通车 (B站 / A站 / YouTube)</h3>
+                            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">直接在下方嵌入播放您喜爱的视频平台内容</p>
+                            <div class="form-group" style="flex-direction: row; gap: 8px; margin-bottom: 15px;">
+                                <input type="text" id="videoUrlInput" class="form-input" placeholder="输入视频链接/BV号/分享链接/ac号...">
+                                <button class="form-btn blue-btn" onclick="loadUserVideo()" style="white-space:nowrap; padding: 8px 18px;">播放</button>
+                            </div>
+                            <div id="videoPlayerContainer" class="apple-video-player-wrap">
+                                <div class="player-placeholder">
+                                    <div>
+                                        <span style="font-size: 32px; display: block; margin-bottom: 10px;">💡</span>
+                                        <span>在上方输入视频链接，或点击下方精选视频开始播放</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="apple-card" style="margin-top: 20px;">
+                            <h3>🔥 平台精选视频</h3>
+                            <div class="video-presets-grid">
+                                <!-- 由 JS 动态渲染 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <p>试玩工具箱 · 标签版 · Firebase RTDB 实时同步 · 拖拽排序 · 多标签页管理</p>
+    </footer>
+</div>
+
+<!-- 🐟 密码验证弹窗 (Apple Style Glassmorphism) -->
+<div id="fishPasswordModal" class="fish-modal-overlay" style="display: none;">
+    <div class="fish-modal-card">
+        <div class="fish-modal-header">
+            <h3>🐟 鱼塘验证</h3>
+            <button class="fish-modal-close" onclick="closeFishPasswordModal()">✕</button>
+        </div>
+        <div class="fish-modal-body">
+            <p style="margin-bottom: 15px; font-size: 13px; color: var(--text-muted);">请输入密码以访问🐟页</p>
+            <div class="form-group" style="margin-bottom: 15px;">
+                <input type="password" id="fishPasswordInput" class="form-input" placeholder="请输入密码" style="text-align: center; letter-spacing: 0.2em; font-size: 16px; height: 42px;">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 15px;">
+                <button class="form-btn" onclick="submitFishPassword()" style="flex: 1; height: 38px; background: linear-gradient(135deg, #0071e3, #00c6ff); color: white;">确认</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+<script src="fish.js"></script>
+</body>
+</html>
