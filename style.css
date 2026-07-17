@@ -522,14 +522,17 @@ header h1 { color: var(--text-color); font-size: 22px; font-weight: 700; }
 }
 .jigsaw-select-mode-single {
     padding: 4px 6px; border-radius: 4px; border: 1px solid var(--edit-color);
-    color: #fff; background: var(--card-bg); font-size: 13px;
+    color: var(--text-color); background: var(--card-bg); font-size: 13px;
 }
 .jigsaw-grid-output { display: grid; gap: 10px; }
 .jigsaw-grid-4 { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
 .jigsaw-grid-2 { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
 .jigsaw-img-item { background: var(--card-bg); border: 1px solid var(--border-color); padding: 8px; border-radius: 6px; text-align: center; }
 .jigsaw-img-item img { max-width: 100%; height: auto; border-radius: 4px; display: block; margin: 0 auto 6px; }
-.jigsaw-info { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.jigsaw-info { font-size: 12px; color: var(--text-color); margin-bottom: 6px; }
+.jigsaw-template-label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: bold; }
+.jigsaw-template-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
+.jigsaw-template-hint { font-size: 11px; color: var(--text-muted); font-weight: normal; }
 .jigsaw-btn-mini { background: var(--edit-color); color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 12px; }
 
 /* 🧩 顶部拼图工具入口按钮 */

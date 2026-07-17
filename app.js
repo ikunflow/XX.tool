@@ -786,7 +786,7 @@ if (jigsawDropZone) {
 
 function getJigsawPrefix(index) {
     const radioChecked = document.querySelector('input[name="jigsawPrefixType"]:checked');
-    const type = radioChecked ? radioChecked.value : 'alpha';
+    const type = radioChecked ? radioChecked.value : 'number';
     if (type === 'number') return index.toString();
     let prefix = '';
     while (index >= 0) { prefix = String.fromCharCode((index % 26) + 97) + prefix; index = Math.floor(index / 26) - 1; }
@@ -801,16 +801,73 @@ function handleJigsawPrefixChange() {
     refreshAllJigsawGroupsUI();
 }
 
+function applyJigsawTemplate() {
+    const checked = document.getElementById('jigsawTemplateToggle')?.checked;
+    if (!checked) return;
+    document.getElementById('jigsawMaxSizeInput').value = 18;
+    document.getElementById('jigsawOutputWidth').value = 300;
+    document.getElementById('jigsawOutputHeight').value = 400;
+    const numberRadio = document.querySelector('input[name="jigsawPrefixType"][value="number"]');
+    const numberCard = document.querySelector('.jigsaw-mode-card[data-value="number"]');
+    if (numberRadio) { numberRadio.checked = true; numberRadio.dispatchEvent(new Event('change')); }
+    if (numberCard) {
+        numberCard.parentElement.querySelectorAll('.jigsaw-mode-card').forEach(c => c.classList.remove('selected'));
+        numberCard.classList.add('selected');
+    }
+    const statusDiv = document.getElementById('jigsawStatus');
+    if (statusDiv) statusDiv.textContent = '📋 已应用默认模板：18KB / 300×400 / 数字前缀 / 前3张特殊切法';
+}
+
+function getJigsawTemplateMode(globalIndex) {
+    if (globalIndex < 2) return '1x2';
+    if (globalIndex === 2) return '2x1';
+    return '2x2';
+}
+
+async function refreshAllJigsawWithCurrentSettings() {
+    if (allJigsawGroupsData.length === 0) {
+        const statusDiv = document.getElementById('jigsawStatus');
+        if (statusDiv) statusDiv.textContent = '⚠️ 没有可刷新的切图组';
+        return;
+    }
+    const statusDiv = document.getElementById('jigsawStatus');
+    const templateEnabled = document.getElementById('jigsawTemplateToggle')?.checked;
+    const radioChecked = document.querySelector('input[name="jigsawGlobalCutMode"]:checked');
+    const defaultMode = radioChecked ? radioChecked.value : '2x2';
+    for (let i = 0; i < allJigsawGroupsData.length; i++) {
+        const group = allJigsawGroupsData[i];
+        if (statusDiv) statusDiv.textContent = `🔄 正在刷新第 ${i + 1}/${allJigsawGroupsData.length} 组 [${group.prefix}]...`;
+        if (!group.isCustom) { group.prefix = getJigsawPrefix(i); }
+        group.mode = templateEnabled ? getJigsawTemplateMode(i) : defaultMode;
+        await new Promise(resolve => {
+            generateJigsawCuts(group, () => {
+                group.tasks.forEach(t => { t.fileName = `${group.prefix}-${t.id}.jpeg`; });
+                resolve();
+            });
+        });
+    }
+    refreshAllJigsawGroupsUI();
+    if (statusDiv) statusDiv.textContent = `✨ 全部 ${allJigsawGroupsData.length} 组已按当前设置刷新完毕！`;
+}
+
 async function handleJigsawFiles(files) {
     const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
     if (imageFiles.length === 0) return;
+    const templateEnabled = document.getElementById('jigsawTemplateToggle')?.checked;
     const radioChecked = document.querySelector('input[name="jigsawGlobalCutMode"]:checked');
     const defaultMode = radioChecked ? radioChecked.value : '2x2';
     const statusDiv = document.getElementById('jigsawStatus');
     for (let i = 0; i < imageFiles.length; i++) {
         const prefix = getJigsawPrefix(totalJigsawImageCount);
         if (statusDiv) statusDiv.textContent = `切割中... (${i + 1}/${imageFiles.length}) [${prefix}]`;
-        await processSingleJigsawFile(imageFiles[i], prefix, defaultMode);
+        let mode = defaultMode;
+        if (templateEnabled) {
+            const globalIndex = totalJigsawImageCount;
+            if (globalIndex < 2) mode = '1x2';
+            else if (globalIndex === 2) mode = '2x1';
+            else mode = '2x2';
+        }
+        await processSingleJigsawFile(imageFiles[i], prefix, mode);
         totalJigsawImageCount++;
     }
     if (statusDiv) statusDiv.textContent = `✨ ${imageFiles.length} 张图片切割完毕`;
@@ -838,11 +895,11 @@ function generateJigsawCuts(groupObj, onComplete) {
     groupObj.tasks = [];
     const img = groupObj.img, mode = groupObj.mode;
     const sizeInput = document.getElementById('jigsawMaxSizeInput');
-    const maxByteSize = ((sizeInput ? parseFloat(sizeInput.value) : 25) || 25) * 1024;
+    const maxByteSize = ((sizeInput ? parseFloat(sizeInput.value) : 18) || 18) * 1024;
     const widthInput = document.getElementById('jigsawOutputWidth');
     const heightInput = document.getElementById('jigsawOutputHeight');
-    const targetOutWidth = parseInt(widthInput ? widthInput.value : '400') || 400;
-    const targetOutHeight = parseInt(heightInput ? heightInput.value : '533') || 533;
+    const targetOutWidth = parseInt(widthInput ? widthInput.value : '300') || 300;
+    const targetOutHeight = parseInt(heightInput ? heightInput.value : '400') || 400;
     let srcX = 0, srcY = 0, srcWidth = img.width, srcHeight = img.height;
     let targetRatio = 3 / 4;
     if (mode === '2x2') targetRatio = 3 / 4;

@@ -134,31 +134,38 @@
         <div class="jigsaw-settings-bar">
             <div class="jigsaw-settings-row">
                 <div class="jigsaw-setting-item">
+                    <label class="jigsaw-template-label">
+                        <input type="checkbox" id="jigsawTemplateToggle" onchange="applyJigsawTemplate()">
+                        <span>📋 默认模板</span>
+                    </label>
+                    <span class="jigsaw-template-hint">勾选后：18KB / 300×400 / 数字前缀 / 前3张特殊切法</span>
+                </div>
+                <div class="jigsaw-setting-item">
                     <span>单图体积上限：</span>
-                    <input type="number" id="jigsawMaxSizeInput" value="25"><span>KB</span>
+                    <input type="number" id="jigsawMaxSizeInput" value="18"><span>KB</span>
                 </div>
                 <div class="jigsaw-setting-item">
                     <span>输出单图分辨率：</span>
-                    <input type="number" id="jigsawOutputWidth" class="jigsaw-resolution-input" value="400" min="10" max="10000" placeholder="宽">
+                    <input type="number" id="jigsawOutputWidth" class="jigsaw-resolution-input" value="300" min="10" max="10000" placeholder="宽">
                     <span>×</span>
-                    <input type="number" id="jigsawOutputHeight" class="jigsaw-resolution-input" value="533" min="10" max="10000" placeholder="高">
+                    <input type="number" id="jigsawOutputHeight" class="jigsaw-resolution-input" value="400" min="10" max="10000" placeholder="高">
                     <span>像素</span>
                 </div>
                 <div class="jigsaw-setting-item">
                     <span>前缀命名规则：</span>
-                    <div class="jigsaw-mode-options" data-group="jigsawPrefixType" data-default="alpha">
-                        <label class="jigsaw-mode-card selected" data-value="alpha" onclick="selectJigsawMode(this, 'jigsawPrefixType')">
+                    <div class="jigsaw-mode-options" data-group="jigsawPrefixType" data-default="number">
+                        <label class="jigsaw-mode-card" data-value="alpha" onclick="selectJigsawMode(this, 'jigsawPrefixType')">
                             <span class="mode-icon m-2x1"><span></span><span></span></span>
                             <span>英文 A/B/C</span>
                             <span class="check-mark">✓</span>
                         </label>
-                        <label class="jigsaw-mode-card" data-value="number" onclick="selectJigsawMode(this, 'jigsawPrefixType')">
+                        <label class="jigsaw-mode-card selected" data-value="number" onclick="selectJigsawMode(this, 'jigsawPrefixType')">
                             <span class="mode-icon m-2x1"><span></span><span></span></span>
                             <span>数字 0/1/2</span>
                             <span class="check-mark">✓</span>
                         </label>
-                        <input type="radio" name="jigsawPrefixType" value="alpha" checked style="display:none;">
-                        <input type="radio" name="jigsawPrefixType" value="number" style="display:none;">
+                        <input type="radio" name="jigsawPrefixType" value="alpha" style="display:none;">
+                        <input type="radio" name="jigsawPrefixType" value="number" checked style="display:none;">
                     </div>
                 </div>
                 <div class="jigsaw-setting-item">
@@ -192,6 +199,7 @@
         </div>
         <div id="jigsawStatus"></div>
         <div class="jigsaw-action-bar" id="jigsawActionBar">
+            <button class="form-btn" style="background:var(--accent-color); color:#121212;" onclick="refreshAllJigsawWithCurrentSettings()">🔄 全部刷新</button>
             <button class="form-btn orange-btn" onclick="downloadAllJigsawGroupsZip()">📦 打包全部 ZIP</button>
             <button class="form-btn red-btn" onclick="clearAllJigsawHistory()">🗑️ 清空历史</button>
         </div>
