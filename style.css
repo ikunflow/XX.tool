@@ -455,6 +455,7 @@ header h1 { color: var(--text-color); font-size: 22px; font-weight: 700; }
 }
 .jigsaw-settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
 .jigsaw-setting-item { display: flex; align-items: center; gap: 6px; font-weight: bold; }
+.jigsaw-resolution-input { width: 60px; padding: 4px 6px; border: 1px solid var(--border-color); border-radius: 4px; text-align: center; font-size: 13px; background: var(--card-bg); color: var(--text-color); }
 .jigsaw-mode-options { display: flex; gap: 12px; align-items: center; font-weight: normal; }
 .jigsaw-mode-options input[type="radio"] { display: none; }
 .jigsaw-mode-card {

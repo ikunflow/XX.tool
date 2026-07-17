@@ -839,6 +839,10 @@ function generateJigsawCuts(groupObj, onComplete) {
     const img = groupObj.img, mode = groupObj.mode;
     const sizeInput = document.getElementById('jigsawMaxSizeInput');
     const maxByteSize = ((sizeInput ? parseFloat(sizeInput.value) : 25) || 25) * 1024;
+    const widthInput = document.getElementById('jigsawOutputWidth');
+    const heightInput = document.getElementById('jigsawOutputHeight');
+    const targetOutWidth = parseInt(widthInput ? widthInput.value : '400') || 400;
+    const targetOutHeight = parseInt(heightInput ? heightInput.value : '533') || 533;
     let srcX = 0, srcY = 0, srcWidth = img.width, srcHeight = img.height;
     let targetRatio = 3 / 4;
     if (mode === '2x2') targetRatio = 3 / 4;
@@ -865,8 +869,8 @@ function generateJigsawCuts(groupObj, onComplete) {
     positions.forEach((pos, index) => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = 400; canvas.height = 533;
-        ctx.drawImage(img, pos.x, pos.y, subWidthSource, subHeightSource, 0, 0, 400, 533);
+        canvas.width = targetOutWidth; canvas.height = targetOutHeight;
+        ctx.drawImage(img, pos.x, pos.y, subWidthSource, subHeightSource, 0, 0, targetOutWidth, targetOutHeight);
         compressJigsawToSize(canvas, 0.95, maxByteSize, (blob) => {
             const url = URL.createObjectURL(blob);
             groupObj.tasks[index] = { url, blob, id: pos.id, fileName: `${groupObj.prefix}-${pos.id}.jpeg` };

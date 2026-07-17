@@ -138,6 +138,13 @@
                     <input type="number" id="jigsawMaxSizeInput" value="25"><span>KB</span>
                 </div>
                 <div class="jigsaw-setting-item">
+                    <span>输出单图分辨率：</span>
+                    <input type="number" id="jigsawOutputWidth" class="jigsaw-resolution-input" value="400" min="10" max="10000" placeholder="宽">
+                    <span>×</span>
+                    <input type="number" id="jigsawOutputHeight" class="jigsaw-resolution-input" value="533" min="10" max="10000" placeholder="高">
+                    <span>像素</span>
+                </div>
+                <div class="jigsaw-setting-item">
                     <span>前缀命名规则：</span>
                     <div class="jigsaw-mode-options" data-group="jigsawPrefixType" data-default="alpha">
                         <label class="jigsaw-mode-card selected" data-value="alpha" onclick="selectJigsawMode(this, 'jigsawPrefixType')">
