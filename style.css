@@ -2253,3 +2253,97 @@ footer { text-align: center; margin-top: 30px; color: var(--text-muted); font-si
     height: 100%;
     border: none;
 }
+
+/* ============================================================
+   🤖 拼图工具 AI 提示模板模块
+   ============================================================ */
+.ai-prompt-template-section {
+    margin: 10px 0;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+}
+
+.ai-prompt-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, rgba(0, 113, 227, 0.08), rgba(88, 86, 214, 0.08));
+    transition: background-color 0.2s;
+    user-select: none;
+}
+
+.ai-prompt-header:hover {
+    background: linear-gradient(135deg, rgba(0, 113, 227, 0.15), rgba(88, 86, 214, 0.15));
+}
+
+.ai-prompt-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--accent-color);
+}
+
+.ai-prompt-toggle-icon {
+    font-size: 12px;
+    color: var(--text-muted);
+    transition: transform 0.3s ease;
+}
+
+.ai-prompt-toggle-icon.expanded {
+    transform: rotate(180deg);
+}
+
+.ai-prompt-content {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border-color);
+    overflow: visible;
+}
+
+.ai-prompt-code {
+    background: rgba(0, 0, 0, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 16px;
+    font-family: 'SF Mono', 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--text-color);
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 0;
+}
+
+.ai-prompt-copy-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    border: 1px solid var(--accent-color);
+    border-radius: 6px;
+    background: #ffffff;
+    color: var(--accent-color);
+    cursor: pointer;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.ai-prompt-copy-btn:hover {
+    transform: scale(1.05);
+    background: var(--accent-color);
+    color: #ffffff;
+    box-shadow: 0 3px 10px rgba(0, 113, 227, 0.35);
+}
+
+.ai-prompt-copy-btn:active {
+    transform: scale(0.98);
+}
+
+.ai-prompt-copy-btn.copied {
+    background: #34c759;
+    box-shadow: 0 2px 8px rgba(52, 199, 89, 0.3);
+}

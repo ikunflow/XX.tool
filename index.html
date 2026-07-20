@@ -60,7 +60,7 @@
                 <span style="font-size: 13px; font-weight: bold;">🎭 主题：</span>
                 <select id="themeSelector" class="form-select" style="width: 140px; padding: 4px 8px;" onchange="switchTheme(this.value)">
                     <option value="cyberpunk">🔋 赛博朋克</option>
-                    <option value="apple">🍎 苹果原生</option>
+                    <option value="apple" selected>🍎 苹果原生</option>
                     <option value="midnight">🌌 深邃星空</option>
                     <option value="minimalLight">☀️ 明亮极简</option>
                     <option value="forestGreen">🌲 森林绿意</option>
@@ -194,6 +194,45 @@
                         <input type="radio" name="jigsawGlobalCutMode" value="1x2" style="display:none;">
                     </div>
                 </div>
+            </div>
+        </div>
+        <!-- AI提示模板模块 -->
+        <div class="ai-prompt-template-section">
+            <div class="ai-prompt-header" onclick="toggleAiPromptTemplate()">
+                <span class="ai-prompt-title">🤖 AI 提示模板</span>
+                <span style="display: flex; align-items: center; gap: 10px;">
+                    <button class="ai-prompt-copy-btn" onclick="event.stopPropagation(); copyAiPromptTemplate()" title="一键复制">📋 一键复制</button>
+                    <span class="ai-prompt-toggle-icon" id="aiPromptToggleIcon">▼</span>
+                </span>
+            </div>
+            <div class="ai-prompt-content" id="aiPromptContent" style="display: none;">
+                <pre id="aiPromptCode" class="ai-prompt-code">// 可直接复用的标准指令（下次复制粘贴即可）
+
+// 生成 TypeScript 代码，导出 customGridIds 和 genGridInfos 两个常量，规则如下：
+
+// customGridIds 为 6 行 5 列二维数组，数组内每个对象单独占一行，缩进对齐，格式参考：
+
+// // 第1行
+
+// [
+
+//     { pieceType: 0, pieceId: 0 },
+
+//     { pieceType: 0, pieceId: 1 },
+
+//     ...
+
+// ],
+
+// pieceType 总范围 0 ~ 19
+
+// type 0 / 1 / 2 仅包含 pieceId 0、1；type ≥ 3 包含 pieceId 0、1、2、3
+
+// 填充顺序：按 pieceType 从小到大依次排列，同 type 内 pieceId 按 0→1→2→3 升序
+
+// genGridInfos 为一维数组，承接 customGridIds 没用完的剩余 pieceType，按同样的 id 升序规则继续排列
+
+// 代码无多余逗号和注释，格式工整</pre>
             </div>
         </div>
         <div class="jigsaw-all-preview-bar" id="jigsawAllPreviewBar" style="display:none;">

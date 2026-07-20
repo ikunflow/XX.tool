@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // 🔥 Firebase 配置
 // ============================================================
 const firebaseConfig = {
@@ -664,6 +664,53 @@ const themeRecipes = {
     neonAurora: `:root { --bg-color: #0c0720; --container-bg: #150e33; --text-color: #f1ecff; --text-muted: #958cb3; --accent-color: #00f0ff; --card-bg: #20164d; --card-hover-bg: #2b1d66; --border-color: #322375; --danger-color: #ff007f; --edit-color: #9b51e0; --orange-color: #ff9100; --panel-gradient: linear-gradient(180deg, #1b1242 0%, #080417 100%); --tag-bg: rgba(0, 240, 255, 0.1); --tag-border: rgba(0, 240, 255, 0.3); }`,
     darkGold: `:root { --bg-color: #1a1a1a; --container-bg: #262626; --text-color: #f5f5f5; --text-muted: #9e9e9e; --accent-color: #d4af37; --card-bg: #333333; --card-hover-bg: #404040; --border-color: #4a4a4a; --danger-color: #cf6679; --edit-color: #03dac6; --orange-color: #ffb74d; --panel-gradient: linear-gradient(180deg, #2d2d2d 0%, #141414 100%); --tag-bg: rgba(212, 175, 55, 0.1); --tag-border: rgba(212, 175, 55, 0.3); }`
 };
+
+// ============================================================
+// 🤖 AI提示模板功能
+// ============================================================
+function toggleAiPromptTemplate() {
+    const content = document.getElementById('aiPromptContent');
+    const icon = document.getElementById('aiPromptToggleIcon');
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        icon.classList.add('expanded');
+    } else {
+        content.style.display = 'none';
+        icon.classList.remove('expanded');
+    }
+}
+
+function copyAiPromptTemplate() {
+    const codeElement = document.getElementById('aiPromptCode');
+    const text = codeElement.textContent;
+    const btn = event.target;
+    
+    navigator.clipboard.writeText(text).then(() => {
+        const originalText = btn.textContent;
+        btn.textContent = '✅ 已复制';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.classList.remove('copied');
+        }, 2000);
+    }).catch(err => {
+        // 降级方案
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        
+        const originalText = btn.textContent;
+        btn.textContent = '✅ 已复制';
+        btn.classList.add('copied');
+        setTimeout(() => {
+            btn.textContent = originalText;
+            btn.classList.remove('copied');
+        }, 2000);
+    });
+}
 
 function switchTheme(themeName) {
     if (!themeRecipes[themeName]) themeName = 'apple';
