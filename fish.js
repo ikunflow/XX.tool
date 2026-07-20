@@ -582,6 +582,9 @@ function renderFishPage() {
     // 初始化市场新闻
     fetchMarketNews();
     
+    // 初始化市场情绪检测
+    initMarketSentiment();
+    
     // 初始化音乐播放器
     initMusicPlayer();
 }
@@ -859,9 +862,64 @@ function renderMarketNews(response) {
 }
 
 // ============================================================
+// ============================================================
 // 🎵 音乐空间 (Music Player)
 // ============================================================
+const MUSIC_CLOUD_PATH = 'toolbox/v2/music_playlist';
+let musicCloudEnabled = true;
+
+function isMusicCloudEnabled() {
+    return musicCloudEnabled && isFirebaseConfigured();
+}
+
+function updateMusicCloudStatus(status) {
+    const el = document.getElementById('musicSyncStatus');
+    if (!el) return;
+    if (status === 'synced') {
+        el.textContent = '已同步';
+        el.className = 'audiobook-sync-status synced';
+    } else if (status === 'syncing') {
+        el.textContent = '同步中';
+        el.className = 'audiobook-sync-status syncing';
+    } else {
+        el.textContent = isFirebaseConfigured() ? '未连接' : '未配置';
+        el.className = 'audiobook-sync-status offline';
+    }
+}
+
+function toggleMusicCloud(enabled) {
+    musicCloudEnabled = enabled;
+    localStorage.setItem('toolbox_v2_music_cloud_enabled', enabled ? '1' : '0');
+    if (enabled) {
+        syncMusicPlaylistToCloud();
+        startMusicCloudSync();
+    }
+    updateMusicCloudStatus(enabled ? 'synced' : null);
+}
+
 function initMusicPlayer() {
+    // 恢复云端同步开关状态
+    const savedCloudEnabled = localStorage.getItem('toolbox_v2_music_cloud_enabled');
+    if (savedCloudEnabled !== null) {
+        musicCloudEnabled = savedCloudEnabled === '1';
+    }
+    const checkbox = document.getElementById('musicCloudCheckbox');
+    if (checkbox) checkbox.checked = musicCloudEnabled;
+
+    // 优先从云端读取，失败则降级本地
+    if (isMusicCloudEnabled()) {
+        syncMusicPlaylistFromCloud().then(() => {
+            startMusicCloudSync();
+        }).catch(() => {
+            loadLocalMusicPlaylist();
+        });
+    } else {
+        loadLocalMusicPlaylist();
+    }
+    updateMusicCloudStatus(isMusicCloudEnabled() ? 'synced' : null);
+}
+
+function loadLocalMusicPlaylist() {
     const savedPlaylist = localStorage.getItem('toolbox_v2_music_playlist');
     if (savedPlaylist) {
         renderMusicIframe(savedPlaylist);
@@ -876,7 +934,7 @@ function addMusicPlaylist() {
         alert("请输入网易云歌单ID或分享链接");
         return;
     }
-    
+
     // 尝试提取 ID
     let playlistId = val;
     // 匹配如 https://music.163.com/#/playlist?id=3778678 或 id=3778678 等
@@ -887,19 +945,257 @@ function addMusicPlaylist() {
         alert("无法识别歌单ID，请确保输入正确。");
         return;
     }
-    
+
     renderMusicIframe(playlistId);
     localStorage.setItem('toolbox_v2_music_playlist', playlistId);
+
+    if (isMusicCloudEnabled()) {
+        syncMusicPlaylistToCloud(playlistId);
+    }
+
     input.value = '';
 }
 
 function renderMusicIframe(playlistId) {
     const container = document.getElementById('musicPlayerContainer');
     if (!container) return;
-    
+
     container.innerHTML = `
         <iframe frameborder="no" border="0" marginwidth="0" marginheight="0" width="100%" height="280" 
         src="https://music.163.com/outchain/player?type=0&id=${playlistId}&auto=0&height=280">
         </iframe>
     `;
 }
+
+function syncMusicPlaylistToCloud(playlistId) {
+    return new Promise((resolve, reject) => {
+        if (!isMusicCloudEnabled()) {
+            resolve();
+            return;
+        }
+        const id = playlistId || localStorage.getItem('toolbox_v2_music_playlist');
+        if (!id) {
+            resolve();
+            return;
+        }
+        updateMusicCloudStatus('syncing');
+        db.ref(MUSIC_CLOUD_PATH).set({
+            playlistId: id,
+            updatedAt: Date.now()
+        }).then(() => {
+            updateMusicCloudStatus('synced');
+            resolve();
+        }).catch((err) => {
+            console.error('音乐云同步失败:', err);
+            updateMusicCloudStatus('offline');
+            reject(err);
+        });
+    });
+}
+
+function syncMusicPlaylistFromCloud() {
+    return new Promise((resolve, reject) => {
+        if (!isMusicCloudEnabled()) {
+            resolve();
+            return;
+        }
+        updateMusicCloudStatus('syncing');
+        db.ref(MUSIC_CLOUD_PATH).once('value').then((snapshot) => {
+            const data = snapshot.val();
+            if (data && data.playlistId) {
+                const localId = localStorage.getItem('toolbox_v2_music_playlist');
+                // 云端较新时覆盖本地
+                if (data.playlistId !== localId) {
+                    localStorage.setItem('toolbox_v2_music_playlist', data.playlistId);
+                    renderMusicIframe(data.playlistId);
+                }
+            }
+            updateMusicCloudStatus('synced');
+            resolve(data);
+        }).catch((err) => {
+            console.error('拉取音乐歌单失败:', err);
+            updateMusicCloudStatus('offline');
+            reject(err);
+        });
+    });
+}
+
+function startMusicCloudSync() {
+    if (!isMusicCloudEnabled()) return;
+    db.ref(MUSIC_CLOUD_PATH).off('value');
+    db.ref(MUSIC_CLOUD_PATH).on('value', (snapshot) => {
+        const data = snapshot.val();
+        if (data && data.playlistId) {
+            const localId = localStorage.getItem('toolbox_v2_music_playlist');
+            if (data.playlistId !== localId) {
+                localStorage.setItem('toolbox_v2_music_playlist', data.playlistId);
+                renderMusicIframe(data.playlistId);
+                updateMusicCloudStatus('synced');
+            }
+        }
+    });
+}
+
+function forceMusicSyncToCloud() {
+    if (!isMusicCloudEnabled()) {
+        alert('⚠️ Firebase 未配置或云端同步已关闭');
+        return;
+    }
+    syncMusicPlaylistToCloud();
+}
+
+function forceMusicSyncFromCloud() {
+    if (!isMusicCloudEnabled()) {
+        alert('⚠️ Firebase 未配置或云端同步已关闭');
+        return;
+    }
+    syncMusicPlaylistFromCloud();
+}
+
+// ============================================================
+// 📊 市场情绪检测 (Market Sentiment Monitor)
+// ============================================================
+// ============================================================
+// 📊 市场情绪检测 (Market Sentiment Monitor)
+// ============================================================
+let sentimentRefreshInterval = null;
+
+function initMarketSentiment() {
+    fetchMarketSentiment();
+    if (sentimentRefreshInterval) clearInterval(sentimentRefreshInterval);
+    sentimentRefreshInterval = setInterval(fetchMarketSentiment, 60000); // 每分钟刷新
+}
+
+async function fetchMarketSentiment() {
+    const container = document.getElementById('sentimentMonitorList');
+    if (container) {
+        container.innerHTML = '<div style="text-align:center; color:var(--text-muted); font-size:12px; padding: 20px 0;">加载中...</div>';
+    }
+
+    try {
+        const [aShare, us] = await Promise.all([
+            fetchAshareSentiment(),
+            fetchUSSentiment()
+        ]);
+        renderSentiment({ aShare, us });
+    } catch (e) {
+        console.error('情绪数据获取失败:', e);
+        if (container) {
+            container.innerHTML = `<div style="text-align:center; color:var(--danger-color); font-size:12px; padding: 20px 0;">获取失败：${e.message || '网络错误'}</div>`;
+        }
+    }
+}
+
+function fetchAshareSentiment() {
+    return new Promise((resolve, reject) => {
+        const scriptId = 'sentiment_ashare_jsonp_script';
+        let oldScript = document.getElementById(scriptId);
+        if (oldScript) oldScript.remove();
+
+        const script = document.createElement('script');
+        script.id = scriptId;
+        script.src = `https://qt.gtimg.cn/q=sh000001,sz399001,sz399006&_t=${Date.now()}`;
+        script.charset = 'gbk';
+
+        script.onload = () => {
+            try {
+                const indices = [
+                    parseTencentIndex('v_sh000001'),
+                    parseTencentIndex('v_sz399001'),
+                    parseTencentIndex('v_sz399006')
+                ].filter(Boolean);
+                const result = calculateAshareScore(indices);
+                if (result) {
+                    resolve(result);
+                } else {
+                    reject(new Error('A股指数数据解析失败'));
+                }
+            } catch (e) {
+                reject(e);
+            }
+        };
+        script.onerror = () => reject(new Error('A股情绪数据获取失败'));
+        document.head.appendChild(script);
+    });
+}
+
+function parseTencentIndex(varName) {
+    const str = window[varName];
+    if (typeof str !== 'string') return null;
+    const parts = str.split('~');
+    if (parts.length < 35) return null;
+    return {
+        name: parts[1],
+        price: parseFloat(parts[3]),
+        changePercent: parseFloat(parts[32])
+    };
+}
+
+function calculateAshareScore(indices) {
+    if (!indices || indices.length === 0) return null;
+    const avgChange = indices.reduce((sum, idx) => sum + idx.changePercent, 0) / indices.length;
+    // 映射规则：-3% 对应 0 分，0% 对应 50 分，+3% 对应 100 分
+    let score = 50 + (avgChange / 3) * 50;
+    score = Math.max(0, Math.min(100, score));
+    return {
+        score: Math.round(score),
+        changePercent: avgChange.toFixed(2),
+        indices: indices
+    };
+}
+
+async function fetchUSSentiment() {
+    const res = await fetch('https://production.dataviz.cnn.io/index/fearandgreed/current');
+    if (!res.ok) throw new Error('美股情绪数据获取失败');
+    const data = await res.json();
+    return {
+        score: Math.round(data.score),
+        rating: data.rating,
+        previousClose: Math.round(data.previous_close),
+        previousWeek: Math.round(data.previous_1_week),
+        previousMonth: Math.round(data.previous_1_month)
+    };
+}
+
+function getSentimentLevel(score) {
+    if (score >= 80) return { label: '极度贪婪', class: 'extreme-greed' };
+    if (score >= 60) return { label: '贪婪', class: 'greed' };
+    if (score >= 40) return { label: '中性', class: 'neutral' };
+    if (score >= 20) return { label: '恐惧', class: 'fear' };
+    return { label: '极度恐惧', class: 'extreme-fear' };
+}
+
+function renderSentiment(data) {
+    const container = document.getElementById('sentimentMonitorList');
+    if (!container) return;
+
+    const aShare = data.aShare;
+    const us = data.us;
+    const aShareLevel = getSentimentLevel(aShare.score);
+    const usLevel = getSentimentLevel(us.score);
+
+    container.innerHTML = `
+        <div class="sentiment-card sentiment-mini">
+            <div class="sentiment-mini-header">
+                <span class="sentiment-mini-label">A股</span>
+                <span class="sentiment-mini-score ${aShareLevel.class}">${aShareLevel.label} ${aShare.score}</span>
+            </div>
+            <div class="sentiment-bar">
+                <div class="sentiment-bar-fill ${aShareLevel.class}" style="width: ${aShare.score}%"></div>
+            </div>
+        </div>
+        <div class="sentiment-card sentiment-mini">
+            <div class="sentiment-mini-header">
+                <span class="sentiment-mini-label">美股</span>
+                <span class="sentiment-mini-score ${usLevel.class}">${usLevel.label} ${us.score}</span>
+            </div>
+            <div class="sentiment-bar">
+                <div class="sentiment-bar-fill ${usLevel.class}" style="width: ${us.score}%"></div>
+            </div>
+        </div>
+        <div class="sentiment-hint" title="恐惧值说明：0-20 极度恐惧（市场恐慌，可能是机会）；20-40 恐惧（情绪偏空）；40-60 中性；60-80 贪婪（情绪乐观）；80-100 极度贪婪（市场过热，需谨慎）。恐惧值越低代表市场越恐慌，越高代表越贪婪。">
+            <span class="sentiment-hint-icon">ℹ️ 恐惧值越低越恐慌，越高越贪婪</span>
+        </div>
+    `;
+}
+

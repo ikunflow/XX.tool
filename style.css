@@ -1730,12 +1730,430 @@ footer { text-align: center; margin-top: 30px; color: var(--text-muted); font-si
 }
 
 /* =========================================================
-   🎧 听书区 (Audiobook Mini Module)
+   📊 情绪检测模块
    ========================================================= */
+.sentiment-list-container {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow-y: auto;
+}
+.sentiment-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 10px;
+}
+.sentiment-label {
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--text-color);
+    margin-bottom: 6px;
+}
+.sentiment-score {
+    font-size: 28px;
+    font-weight: bold;
+    margin-bottom: 2px;
+}
+.sentiment-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+.sentiment-bar {
+    height: 6px;
+    background: var(--border-color);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+.sentiment-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.5s ease;
+}
+.sentiment-bar-fill.extreme-fear,
+.sentiment-score.extreme-fear { background-color: #d93026; color: #d93026; }
+.sentiment-bar-fill.fear,
+.sentiment-score.fear { background-color: #e74c3c; color: #e74c3c; }
+.sentiment-bar-fill.neutral,
+.sentiment-score.neutral { background-color: #f1c40f; color: #f1c40f; }
+.sentiment-bar-fill.greed,
+.sentiment-score.greed { background-color: #27ae60; color: #27ae60; }
+.sentiment-bar-fill.extreme-greed,
+.sentiment-score.extreme-greed { background-color: #16a085; color: #16a085; }
+.sentiment-indices {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+}
+.sentiment-index {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+.sentiment-history {
+    display: flex;
+    justify-content: space-between;
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border-color);
+}
+
+/* 情绪检测 Mini 版 */
+.sentiment-card.sentiment-mini {
+    padding: 6px 8px;
+    border-radius: 8px;
+}
+.sentiment-mini-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.sentiment-mini-label {
+    font-size: 11px;
+    font-weight: bold;
+    color: var(--text-color);
+}
+.sentiment-mini-score {
+    font-size: 11px;
+    font-weight: bold;
+}
+.sentiment-hint {
+    padding: 6px 8px;
+    font-size: 10px;
+    color: var(--text-muted);
+    line-height: 1.4;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    cursor: help;
+}
+
+/* 🎵 音乐空间云端同步 */
+.music-sync-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+/* =========================================================
+   🎧 听书区 (Audiobook Mini Module) - 增强样式
+   ========================================================= */
+.ab-module-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.ab-module-actions {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+.ab-view-toggle {
+    background: var(--container-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-muted);
+    border-radius: 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.ab-view-toggle:hover,
+.ab-view-toggle.active {
+    border-color: var(--accent-color);
+    color: var(--accent-color);
+    background: rgba(0, 113, 227, 0.08);
+}
+
+.ab-search-bar {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.ab-search-bar .form-input {
+    flex: 1;
+    min-width: 0;
+    padding: 5px 8px;
+    font-size: 12px;
+}
+.ab-search-bar .form-btn {
+    padding: 5px 8px;
+    font-size: 12px;
+}
+
+.ab-search-results {
+    max-height: 180px;
+    overflow-y: auto;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    padding: 4px;
+}
+.ab-search-item {
+    padding: 6px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+}
+.ab-search-item:last-child { border-bottom: none; }
+.ab-search-item:hover {
+    background: var(--tag-bg);
+}
+.ab-search-title {
+    font-size: 12px;
+    color: var(--text-color);
+    font-weight: 600;
+}
+.ab-search-context {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ab-search-empty {
+    padding: 12px 8px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 12px;
+}
+
+.ab-sync-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    border-radius: 6px;
+    background: var(--container-bg);
+    border: 1px solid var(--border-color);
+}
+.ab-sync-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+    cursor: pointer;
+    user-select: none;
+}
+.audiobook-sync-status {
+    flex: 1;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.audiobook-sync-status.synced {
+    background: rgba(0, 250, 154, 0.08);
+    border: 1px solid rgba(0, 250, 154, 0.3);
+    color: var(--accent-color);
+}
+.audiobook-sync-status.syncing {
+    background: rgba(24, 144, 255, 0.08);
+    border: 1px solid rgba(24, 144, 255, 0.3);
+    color: var(--edit-color);
+}
+.audiobook-sync-status.error {
+    background: rgba(255, 77, 79, 0.08);
+    border: 1px solid rgba(255, 77, 79, 0.3);
+    color: var(--danger-color);
+}
+.audiobook-sync-status.offline {
+    background: rgba(230, 126, 34, 0.08);
+    border: 1px solid rgba(230, 126, 34, 0.3);
+    color: var(--orange-color);
+}
+
+.ab-progress-row {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 11px;
+    color: var(--accent-color);
+    font-weight: bold;
+    padding: 2px 0;
+}
+.ab-progress-bar {
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+}
+.ab-progress-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 12px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 5px rgba(0, 113, 227, 0.4);
+}
+.ab-progress-bar::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+.ab-main-controls {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.ab-voice-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 4px;
+    gap: 6px;
+}
+.ab-voice-row select {
+    flex: 1;
+    min-width: 0;
+}
+.ab-rate-wrap {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.ab-rate-wrap input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: var(--border-color);
+    border-radius: 2px;
+    outline: none;
+}
+.ab-rate-wrap input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    cursor: pointer;
+}
+.ab-rate-wrap input[type="range"]::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    background: var(--accent-color);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+}
+
+.ab-bookshelf-view {
+    margin-top: 8px;
+}
+.ab-bookshelf-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 4px;
+}
+.audiobook-shelf-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: all 0.2s;
+    cursor: pointer;
+}
+.audiobook-shelf-card:hover {
+    border-color: var(--accent-color);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 113, 227, 0.1);
+}
+.ab-shelf-cover {
+    height: 80px;
+    background: linear-gradient(135deg, rgba(0, 113, 227, 0.15), rgba(0, 198, 255, 0.08));
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 8px;
+    position: relative;
+}
+.ab-shelf-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: var(--text-color);
+    text-align: center;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    line-height: 1.3;
+}
+.ab-shelf-progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: rgba(0, 0, 0, 0.08);
+}
+.ab-shelf-progress-bar > div {
+    height: 100%;
+    background: var(--accent-color);
+    transition: width 0.3s;
+}
+.ab-shelf-info {
+    padding: 8px;
+}
+.ab-shelf-meta {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.ab-shelf-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 6px;
+}
+.ab-shelf-actions .form-btn {
+    flex: 1;
+    padding: 4px 0;
+    font-size: 10px;
+}
+
 .reading-highlight {
     background: var(--tag-bg);
     color: var(--accent-color);
     border-radius: 2px;
+    transition: background 0.2s;
 }
 .control-btn {
     background: var(--card-hover-bg);
