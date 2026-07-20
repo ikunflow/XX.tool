@@ -429,32 +429,34 @@ header h1 { color: var(--text-color); font-size: 22px; font-weight: 700; }
     display: none;
     background-color: var(--container-bg);
     border: 1px solid var(--border-color);
-    border-radius: 8px;
-    padding: 20px;
+    border-radius: 12px;
+    padding: 28px 36px;
     box-shadow: 0 8px 25px rgba(0,0,0,0.4);
+    min-height: calc(100vh - 40px);
 }
 .jigsaw-page-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 15px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid var(--border-color);
 }
-.jigsaw-page-title { font-size: 20px; color: var(--text-color); font-weight: bold; }
+.jigsaw-page-header-actions { display: flex; gap: 10px; align-items: center; }
+.jigsaw-page-title { font-size: 26px; color: var(--text-color); font-weight: bold; }
 .jigsaw-settings-bar {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin-bottom: 15px;
+    gap: 14px;
+    margin-bottom: 20px;
     background: var(--card-bg);
-    padding: 12px;
-    border-radius: 6px;
+    padding: 18px 20px;
+    border-radius: 8px;
     border: 1px solid var(--border-color);
-    font-size: 13px;
+    font-size: 15px;
 }
-.jigsaw-settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
-.jigsaw-setting-item { display: flex; align-items: center; gap: 6px; font-weight: bold; }
+.jigsaw-settings-row { display: flex; flex-wrap: wrap; align-items: center; gap: 24px; }
+.jigsaw-setting-item { display: flex; align-items: center; gap: 8px; font-weight: bold; }
 .jigsaw-resolution-input { width: 60px; padding: 4px 6px; border: 1px solid var(--border-color); border-radius: 4px; text-align: center; font-size: 13px; background: var(--card-bg); color: var(--text-color); }
 .jigsaw-mode-options { display: flex; gap: 12px; align-items: center; font-weight: normal; }
 .jigsaw-mode-options input[type="radio"] { display: none; }
@@ -497,24 +499,66 @@ header h1 { color: var(--text-color); font-size: 22px; font-weight: 700; }
 .jigsaw-mode-card.selected .check-mark { opacity: 1; }
 .jigsaw-upload-area {
     border: 2px dashed var(--accent-color);
-    padding: 30px 15px;
+    padding: 40px 20px;
     text-align: center;
-    border-radius: 8px;
+    border-radius: 10px;
     background: rgba(0, 250, 154, 0.01);
     cursor: pointer;
-    margin-bottom: 15px;
+    margin-bottom: 20px;
 }
 #jigsawFileInput { display: none; }
-#jigsawStatus { text-align: center; color: var(--orange-color); font-size: 13px; margin: 8px 0; font-weight: bold; }
-.jigsaw-action-bar { text-align: center; margin: 15px 0; display: none; }
-.jigsaw-action-bar .form-btn { margin: 0 8px; padding: 8px 20px; }
+#jigsawStatus { text-align: center; color: var(--orange-color); font-size: 15px; margin: 10px 0; font-weight: bold; }
+.jigsaw-action-bar { text-align: center; margin: 20px 0; display: none; }
+.jigsaw-action-bar .form-btn { margin: 0 10px; padding: 10px 24px; font-size: 15px; }
 .jigsaw-group-container {
-    margin-top: 15px; border: 1px solid var(--border-color);
-    border-radius: 8px; padding: 15px; background: var(--bg-color);
+    margin-top: 20px; border: 1px solid var(--border-color);
+    border-radius: 10px; padding: 20px; background: var(--bg-color);
 }
 .jigsaw-group-header {
     display: flex; justify-content: space-between; align-items: center;
     border-bottom: 1px solid var(--border-color); padding-bottom: 8px; margin-bottom: 12px;
+}
+.jigsaw-group-index {
+    display: inline-block; background: #4a90d9; color: #fff;
+    padding: 2px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; margin-right: 10px;
+    border: 1px solid #3a7bc8;
+}
+.jigsaw-original-preview-label {
+    font-size: 11px; color: var(--text-muted); margin-left: 12px; margin-right: 4px;
+}
+.jigsaw-original-preview-img {
+    width: 48px; height: 64px; object-fit: cover; border-radius: 4px;
+    border: 1px solid var(--border-color); vertical-align: middle; cursor: pointer;
+    transition: transform 0.2s;
+}
+.jigsaw-original-preview-img:hover {
+    transform: scale(3); z-index: 100; position: relative;
+}
+.jigsaw-all-preview-bar {
+    margin-bottom: 16px; background: var(--card-bg); border: 1px solid var(--border-color);
+    border-radius: 8px; padding: 14px 18px;
+}
+.jigsaw-all-preview-title {
+    font-size: 14px; font-weight: bold; color: var(--text-color); display: block; margin-bottom: 10px;
+}
+.jigsaw-all-preview-container {
+    display: flex; flex-wrap: wrap; gap: 10px;
+}
+.jigsaw-all-preview-item {
+    position: relative;
+}
+.jigsaw-all-preview-item img {
+    width: 56px; height: 75px; object-fit: cover; border-radius: 6px;
+    border: 2px solid var(--border-color); cursor: pointer; transition: transform 0.2s;
+}
+.jigsaw-all-preview-item img:hover {
+    transform: scale(2.5); z-index: 100; position: relative;
+}
+.jigsaw-all-preview-item .preview-badge {
+    position: absolute; top: -6px; left: -6px;
+    background: #4a90d9; color: #fff; font-size: 10px; font-weight: bold;
+    width: 18px; height: 18px; border-radius: 50%; display: flex;
+    align-items: center; justify-content: center;
 }
 .jigsaw-input-prefix {
     width: 100px; padding: 4px 6px; background: var(--card-bg);
@@ -524,15 +568,15 @@ header h1 { color: var(--text-color); font-size: 22px; font-weight: 700; }
     padding: 4px 6px; border-radius: 4px; border: 1px solid var(--edit-color);
     color: var(--text-color); background: var(--card-bg); font-size: 13px;
 }
-.jigsaw-grid-output { display: grid; gap: 10px; }
-.jigsaw-grid-4 { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
-.jigsaw-grid-2 { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-.jigsaw-img-item { background: var(--card-bg); border: 1px solid var(--border-color); padding: 8px; border-radius: 6px; text-align: center; }
-.jigsaw-img-item img { max-width: 100%; height: auto; border-radius: 4px; display: block; margin: 0 auto 6px; }
-.jigsaw-info { font-size: 12px; color: var(--text-color); margin-bottom: 6px; }
-.jigsaw-template-label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: bold; }
-.jigsaw-template-label input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; }
-.jigsaw-template-hint { font-size: 11px; color: var(--text-muted); font-weight: normal; }
+.jigsaw-grid-output { display: grid; gap: 14px; }
+.jigsaw-grid-4 { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+.jigsaw-grid-2 { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.jigsaw-img-item { background: var(--card-bg); border: 1px solid var(--border-color); padding: 10px; border-radius: 8px; text-align: center; }
+.jigsaw-img-item img { max-width: 100%; height: auto; border-radius: 6px; display: block; margin: 0 auto 8px; }
+.jigsaw-info { font-size: 13px; color: var(--text-color); margin-bottom: 8px; }
+.jigsaw-template-label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: bold; }
+.jigsaw-template-label input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+.jigsaw-template-hint { font-size: 12px; color: var(--text-muted); font-weight: normal; }
 .jigsaw-btn-mini { background: var(--edit-color); color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; text-decoration: none; font-size: 12px; }
 
 /* 🧩 顶部拼图工具入口按钮 */

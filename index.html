@@ -129,26 +129,29 @@
     <div id="jigsawAppPage">
         <div class="jigsaw-page-header">
             <div class="jigsaw-page-title">🧩 3:4 比例多图批量智能切图工作台</div>
-            <button class="form-btn blue-btn" onclick="switchView('dashboard')">← 返回主看板</button>
+            <div class="jigsaw-page-header-actions">
+                <button class="form-btn blue-btn" onclick="switchView('dashboard')">← 返回主看板</button>
+                <button class="form-btn red-btn" id="jigsawLockBtn" onclick="toggleJigsawPageLock()" style="padding: 6px 12px; font-size: 13px;">🔒 固定</button>
+            </div>
         </div>
         <div class="jigsaw-settings-bar">
             <div class="jigsaw-settings-row">
                 <div class="jigsaw-setting-item">
                     <label class="jigsaw-template-label">
-                        <input type="checkbox" id="jigsawTemplateToggle" onchange="applyJigsawTemplate()">
+                        <input type="checkbox" id="jigsawTemplateToggle" checked onchange="applyJigsawTemplate(); autoRefreshAllJigsaw()">
                         <span>📋 默认模板</span>
                     </label>
                     <span class="jigsaw-template-hint">勾选后：18KB / 300×400 / 数字前缀 / 前3张特殊切法</span>
                 </div>
                 <div class="jigsaw-setting-item">
                     <span>单图体积上限：</span>
-                    <input type="number" id="jigsawMaxSizeInput" value="18"><span>KB</span>
+                    <input type="number" id="jigsawMaxSizeInput" value="18" oninput="autoRefreshAllJigsaw()"><span>KB</span>
                 </div>
                 <div class="jigsaw-setting-item">
                     <span>输出单图分辨率：</span>
-                    <input type="number" id="jigsawOutputWidth" class="jigsaw-resolution-input" value="300" min="10" max="10000" placeholder="宽">
+                    <input type="number" id="jigsawOutputWidth" class="jigsaw-resolution-input" value="300" min="10" max="10000" placeholder="宽" oninput="autoRefreshAllJigsaw()">
                     <span>×</span>
-                    <input type="number" id="jigsawOutputHeight" class="jigsaw-resolution-input" value="400" min="10" max="10000" placeholder="高">
+                    <input type="number" id="jigsawOutputHeight" class="jigsaw-resolution-input" value="400" min="10" max="10000" placeholder="高" oninput="autoRefreshAllJigsaw()">
                     <span>像素</span>
                 </div>
                 <div class="jigsaw-setting-item">
@@ -193,13 +196,16 @@
                 </div>
             </div>
         </div>
+        <div class="jigsaw-all-preview-bar" id="jigsawAllPreviewBar" style="display:none;">
+            <span class="jigsaw-all-preview-title">🖼️ 原图预览（共 0 张）</span>
+            <div class="jigsaw-all-preview-container" id="jigsawAllPreviewContainer"></div>
+        </div>
         <div class="jigsaw-upload-area" id="jigsawDropZone" onclick="document.getElementById('jigsawFileInput').click()">
             <span style="font-size: 15px; font-weight: bold; color: var(--accent-color);">点击或将多张图片拖拽到此处进行批量自动切割</span>
             <input type="file" id="jigsawFileInput" accept="image/*" multiple onchange="handleJigsawFiles(this.files)">
         </div>
         <div id="jigsawStatus"></div>
         <div class="jigsaw-action-bar" id="jigsawActionBar">
-            <button class="form-btn" style="background:var(--accent-color); color:#121212;" onclick="refreshAllJigsawWithCurrentSettings()">🔄 全部刷新</button>
             <button class="form-btn orange-btn" onclick="downloadAllJigsawGroupsZip()">📦 打包全部 ZIP</button>
             <button class="form-btn red-btn" onclick="clearAllJigsawHistory()">🗑️ 清空历史</button>
         </div>

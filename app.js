@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // 🔥 Firebase 配置
 // ============================================================
 const firebaseConfig = {
@@ -700,8 +700,8 @@ function switchView(viewName) {
     if (fishPage) fishPage.style.display = 'none';
 
     if (viewName === 'jigsaw') {
-        if (header) header.style.display = 'flex';
-        if (syncToolbar) syncToolbar.style.display = 'flex';
+        if (header) header.style.display = 'none';
+        if (syncToolbar) syncToolbar.style.display = 'none';
         if (jigsawPage) jigsawPage.style.display = 'block';
     } else if (viewName === 'fish') {
         if (header) header.style.display = 'none';
@@ -720,9 +720,25 @@ function switchView(viewName) {
     }
 }
 
+let isJigsawPageLocked = false;
+function toggleJigsawPageLock() {
+    isJigsawPageLocked = !isJigsawPageLocked;
+    const btn = document.getElementById('jigsawLockBtn');
+    if (!btn) return;
+    if (isJigsawPageLocked) {
+        btn.textContent = '🔓 解除固定';
+        btn.className = 'form-btn green-btn';
+        btn.style.cssText = 'padding: 6px 12px; font-size: 13px;';
+    } else {
+        btn.textContent = '🔒 固定';
+        btn.className = 'form-btn red-btn';
+        btn.style.cssText = 'padding: 6px 12px; font-size: 13px;';
+    }
+}
+
 let isPageLocked = false;
 window.addEventListener('beforeunload', function (e) {
-    if (isPageLocked) {
+    if (isPageLocked || isJigsawPageLocked) {
         e.preventDefault();
         e.returnValue = '页面已锁定，确定要离开吗？';
     }
@@ -759,11 +775,12 @@ function selectJigsawMode(card, groupName) {
         radio.checked = true;
         radio.dispatchEvent(new Event('change'));
     }
+    if (groupName === 'jigsawPrefixType') { handleJigsawPrefixChange(); }
+    if (groupName === 'jigsawGlobalCutMode') { autoRefreshAllJigsaw(); }
 }
 
-if (jigsawFileInput) {
-    jigsawFileInput.addEventListener('change', (e) => handleJigsawFiles(e.target.files));
-}
+// file input change is handled by inline onchange in HTML to avoid duplicate firing
+// jigsawFileInput.addEventListener('change', ...) removed to prevent double-trigger
 if (jigsawDropZone) {
     jigsawDropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
@@ -791,6 +808,13 @@ function getJigsawPrefix(index) {
     let prefix = '';
     while (index >= 0) { prefix = String.fromCharCode((index % 26) + 97) + prefix; index = Math.floor(index / 26) - 1; }
     return prefix;
+}
+
+let _autoRefreshTimer = null;
+function autoRefreshAllJigsaw() {
+    if (allJigsawGroupsData.length === 0) return;
+    clearTimeout(_autoRefreshTimer);
+    _autoRefreshTimer = setTimeout(() => { refreshAllJigsawWithCurrentSettings(); }, 300);
 }
 
 function handleJigsawPrefixChange() {
@@ -838,7 +862,13 @@ async function refreshAllJigsawWithCurrentSettings() {
         const group = allJigsawGroupsData[i];
         if (statusDiv) statusDiv.textContent = `🔄 正在刷新第 ${i + 1}/${allJigsawGroupsData.length} 组 [${group.prefix}]...`;
         if (!group.isCustom) { group.prefix = getJigsawPrefix(i); }
-        group.mode = templateEnabled ? getJigsawTemplateMode(i) : defaultMode;
+        // 模板勾选时：非自定义mode的组按模板规则重新分配切法
+        if (templateEnabled && !group.modeIsCustom) {
+            group.mode = getJigsawTemplateMode(i);
+        } else if (!group.modeIsCustom) {
+            group.mode = defaultMode;
+        }
+        // modeIsCustom的组保留用户手动选的切割方式
         await new Promise(resolve => {
             generateJigsawCuts(group, () => {
                 group.tasks.forEach(t => { t.fileName = `${group.prefix}-${t.id}.jpeg`; });
@@ -850,27 +880,37 @@ async function refreshAllJigsawWithCurrentSettings() {
     if (statusDiv) statusDiv.textContent = `✨ 全部 ${allJigsawGroupsData.length} 组已按当前设置刷新完毕！`;
 }
 
+let _jigsawIsProcessing = false;
 async function handleJigsawFiles(files) {
-    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
-    if (imageFiles.length === 0) return;
-    const templateEnabled = document.getElementById('jigsawTemplateToggle')?.checked;
-    const radioChecked = document.querySelector('input[name="jigsawGlobalCutMode"]:checked');
-    const defaultMode = radioChecked ? radioChecked.value : '2x2';
-    const statusDiv = document.getElementById('jigsawStatus');
-    for (let i = 0; i < imageFiles.length; i++) {
-        const prefix = getJigsawPrefix(totalJigsawImageCount);
-        if (statusDiv) statusDiv.textContent = `切割中... (${i + 1}/${imageFiles.length}) [${prefix}]`;
-        let mode = defaultMode;
-        if (templateEnabled) {
-            const globalIndex = totalJigsawImageCount;
-            if (globalIndex < 2) mode = '1x2';
-            else if (globalIndex === 2) mode = '2x1';
-            else mode = '2x2';
+    if (_jigsawIsProcessing) return;
+    _jigsawIsProcessing = true;
+    try {
+        const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'));
+        if (imageFiles.length === 0) { _jigsawIsProcessing = false; return; }
+        const templateEnabled = document.getElementById('jigsawTemplateToggle')?.checked;
+        const radioChecked = document.querySelector('input[name="jigsawGlobalCutMode"]:checked');
+        const defaultMode = radioChecked ? radioChecked.value : '2x2';
+        const statusDiv = document.getElementById('jigsawStatus');
+        for (let i = 0; i < imageFiles.length; i++) {
+            const prefix = getJigsawPrefix(totalJigsawImageCount);
+            if (statusDiv) statusDiv.textContent = `切割中... (${i + 1}/${imageFiles.length}) [${prefix}]`;
+            let mode = defaultMode;
+            if (templateEnabled) {
+                const globalIndex = totalJigsawImageCount;
+                if (globalIndex < 2) mode = '1x2';
+                else if (globalIndex === 2) mode = '2x1';
+                else mode = '2x2';
+            }
+            await processSingleJigsawFile(imageFiles[i], prefix, mode);
+            totalJigsawImageCount++;
         }
-        await processSingleJigsawFile(imageFiles[i], prefix, mode);
-        totalJigsawImageCount++;
+        if (statusDiv) statusDiv.textContent = `✨ ${imageFiles.length} 张图片切割完毕`;
+    } finally {
+        _jigsawIsProcessing = false;
+        // 重置 file input value，确保同一文件可再次选择
+        const fileInput = document.getElementById('jigsawFileInput');
+        if (fileInput) fileInput.value = '';
     }
-    if (statusDiv) statusDiv.textContent = `✨ ${imageFiles.length} 张图片切割完毕`;
 }
 
 function processSingleJigsawFile(file, prefix, mode) {
@@ -880,7 +920,7 @@ function processSingleJigsawFile(file, prefix, mode) {
             const img = new Image();
             img.onload = function() {
                 const id = ++jigsawGroupCounterId;
-                const groupObj = { id, prefix, isCustom: false, mode, img, tasks: [], gridClass: '' };
+                const groupObj = { id, prefix, isCustom: false, modeIsCustom: false, mode, img, tasks: [], gridClass: '' };
                 allJigsawGroupsData.push(groupObj);
                 generateJigsawCuts(groupObj, () => { refreshAllJigsawGroupsUI(); resolve(); });
             };
@@ -893,6 +933,8 @@ function processSingleJigsawFile(file, prefix, mode) {
 function generateJigsawCuts(groupObj, onComplete) {
     groupObj.tasks.forEach(task => { if(task && task.url) URL.revokeObjectURL(task.url); });
     groupObj.tasks = [];
+    groupObj._cutToken = (groupObj._cutToken || 0) + 1;
+    const myToken = groupObj._cutToken;
     const img = groupObj.img, mode = groupObj.mode;
     const sizeInput = document.getElementById('jigsawMaxSizeInput');
     const maxByteSize = ((sizeInput ? parseFloat(sizeInput.value) : 18) || 18) * 1024;
@@ -929,6 +971,7 @@ function generateJigsawCuts(groupObj, onComplete) {
         canvas.width = targetOutWidth; canvas.height = targetOutHeight;
         ctx.drawImage(img, pos.x, pos.y, subWidthSource, subHeightSource, 0, 0, targetOutWidth, targetOutHeight);
         compressJigsawToSize(canvas, 0.95, maxByteSize, (blob) => {
+            if (groupObj._cutToken !== myToken) return;
             const url = URL.createObjectURL(blob);
             groupObj.tasks[index] = { url, blob, id: pos.id, fileName: `${groupObj.prefix}-${pos.id}.jpeg` };
             completedCount++; if (completedCount === positions.length) onComplete();
@@ -949,18 +992,41 @@ function compressJigsawToSize(canvas, quality, maxByteSize, callback) {
     }, 'image/jpeg', quality);
 }
 
+function refreshAllPreviewBar() {
+    const bar = document.getElementById('jigsawAllPreviewBar');
+    const container = document.getElementById('jigsawAllPreviewContainer');
+    const title = bar?.querySelector('.jigsaw-all-preview-title');
+    if (!bar || !container) return;
+    if (allJigsawGroupsData.length === 0) { bar.style.display = 'none'; return; }
+    bar.style.display = 'block';
+    if (title) title.textContent = `🖼️ 原图预览（共 ${allJigsawGroupsData.length} 张）`;
+    container.innerHTML = '';
+    allJigsawGroupsData.forEach((groupObj, index) => {
+        const item = document.createElement('div');
+        item.className = 'jigsaw-all-preview-item';
+        item.innerHTML = `
+            <img src="${groupObj.img.src}" title="第${index + 1}组 ${groupObj.prefix}" alt="原图">
+            <span class="preview-badge">${index + 1}</span>
+        `;
+        container.appendChild(item);
+    });
+}
+
 function refreshAllJigsawGroupsUI() {
     const container = document.getElementById('jigsawOutputGroupsContainer');
     if (!container) return;
     container.innerHTML = '';
     const jigsawActionBar = document.getElementById('jigsawActionBar');
     if (jigsawActionBar && allJigsawGroupsData.length > 0) jigsawActionBar.style.display = 'block';
-    allJigsawGroupsData.forEach((groupObj) => {
+    refreshAllPreviewBar();
+    allJigsawGroupsData.forEach((groupObj, index) => {
         const groupDiv = document.createElement('div');
         groupDiv.className = 'jigsaw-group-container';
+        groupDiv.id = `jigsaw-group-${groupObj.id}`;
         groupDiv.innerHTML = `
             <div class="jigsaw-group-header">
                 <div>
+                    <span class="jigsaw-group-index">第 ${index + 1} 组</span>
                     <span style="font-size:12px;opacity:0.8">前缀:</span>
                     <input type="text" class="jigsaw-input-prefix" value="${groupObj.prefix}" onchange="updateJigsawGroupPrefix(${groupObj.id}, this.value)">
                     <select class="jigsaw-select-mode-single" onchange="updateSingleJigsawMode(${groupObj.id}, this.value)">
@@ -968,6 +1034,8 @@ function refreshAllJigsawGroupsUI() {
                         <option value="2x1" ${groupObj.mode === '2x1' ? 'selected' : ''}>横向双切</option>
                         <option value="1x2" ${groupObj.mode === '1x2' ? 'selected' : ''}>纵向双切</option>
                     </select>
+                    <span class="jigsaw-original-preview-label">原图预览</span>
+                    <img src="${groupObj.img.src}" class="jigsaw-original-preview-img" alt="原图">
                 </div>
                 <div>
                     <button class="form-btn blue-btn" style="padding:3px 10px; font-size:12px;" onclick="downloadSingleJigsawZip(${groupObj.id})">打包下载</button>
@@ -1003,8 +1071,12 @@ function updateJigsawGroupPrefix(id, newPrefix) {
 function updateSingleJigsawMode(id, newMode) {
     const groupObj = allJigsawGroupsData.find(g => g.id === id);
     if (!groupObj) return;
-    groupObj.mode = newMode; generateJigsawCuts(groupObj, () => { refreshAllJigsawGroupsUI(); });
+    groupObj.mode = newMode;
+    groupObj.modeIsCustom = true;
+    generateJigsawCuts(groupObj, () => { refreshAllJigsawGroupsUI(); });
 }
+
+
 
 function downloadSingleJigsawZip(id) {
     const group = allJigsawGroupsData.find(g => g.id === id); if (!group) return;
@@ -1039,6 +1111,7 @@ function clearAllJigsawHistory() {
         allJigsawGroupsData = []; totalJigsawImageCount = 0; jigsawGroupCounterId = 0;
         const container = document.getElementById('jigsawOutputGroupsContainer');
         if (container) container.innerHTML = '';
+        refreshAllPreviewBar();
         const jigsawActionBar = document.getElementById('jigsawActionBar');
         if (jigsawActionBar) jigsawActionBar.style.display = 'none';
     }
