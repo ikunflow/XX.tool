@@ -177,7 +177,7 @@ let currentBlogTag = null;
 // 渲染博客侧边栏（分类和标签）
 function renderBlogSidebar() {
     const categoryList = document.getElementById('blogCategoryList');
-    const tagCloud = document.getElementById('blogTagCloud');
+    const tagCloud = document.getElementById('fishTagsContainer');
     if (!categoryList || !tagCloud) return;
 
     const categories = new Set();
@@ -427,119 +427,352 @@ async function deleteFishPost(postId) {
 }
 
 // ============================================================
-// 📺 视频直通车引擎
 // ============================================================
-const presetVideos = [
-    { platform: 'bilibili', title: '【经典】Bad Apple!! 影绘原版高清', videoId: 'BV1xx411c7rr' },
-    { platform: 'bilibili', title: '【原神】璃月港印象——绝美中国风交响乐', videoId: 'BV1Yy4y1p7zG' },
-    { platform: 'youtube', title: 'Rick Astley - Never Gonna Give You Up (Official Music Video)', videoId: 'dQw4w9WgXcQ' },
-    { platform: 'acfun', title: '【A站经典】万物皆可AcFun！极乐净土宅舞', videoId: '31688538' }
-];
+// 🎮 摸鱼竞技场引擎 (Game Section)
+// ============================================================
 
-// 解析并播放视频
-function loadVideo(platform, videoId) {
-    const playerContainer = document.getElementById('videoPlayerContainer');
-    if (!playerContainer) return;
-    
-    let iframeSrc = '';
-    if (platform === 'youtube') {
-        iframeSrc = `https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0`;
-    } else if (platform === 'bilibili') {
-        // 增加 high_quality=1 和 as_wide=1 参数以实现高画质和宽屏，并开启 allowfullscreen
-        iframeSrc = `//player.bilibili.com/player.html?bvid=${videoId}&page=1&high_quality=1&as_wide=1&autoplay=1`;
-    } else if (platform === 'acfun') {
-        iframeSrc = `https://www.acfun.cn/player/ac${videoId}`;
-    }
-    
-    if (iframeSrc) {
-        playerContainer.innerHTML = `
-            <iframe src="${iframeSrc}" 
-                    scrolling="no" 
-                    border="0" 
-                    frameborder="no" 
-                    framespacing="0" 
-                    allowfullscreen="true"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture">
-            </iframe>
-        `;
+let currentGame = null;
+let gameTimer = null;
+let gameScores = {
+    clickFrenzy: [],
+    reactionTime: [],
+    mathMaster: []
+};
+
+const GAME_SCORES_PATH = 'toolbox/v2/game_scores';
+
+function initGameDatabase() {
+    if (typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()) {
+        db.ref(GAME_SCORES_PATH).on('value', (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                gameScores = data;
+                // Ensure properties exist
+                if (!gameScores.clickFrenzy) gameScores.clickFrenzy = [];
+                if (!gameScores.reactionTime) gameScores.reactionTime = [];
+                if (!gameScores.mathMaster) gameScores.mathMaster = [];
+            } else {
+                gameScores = {
+                    clickFrenzy: [],
+                    reactionTime: [],
+                    mathMaster: []
+                };
+            }
+            // 刷新排行榜
+            const activeTab = document.querySelector('.lb-tab.active');
+            if (activeTab) {
+                showLeaderboard(activeTab.getAttribute('data-game'));
+            }
+        }, (error) => {
+            console.error("Firebase游戏分数监听失败，降级本地存储:", error);
+            initGameLocalFallback();
+        });
     } else {
-        playerContainer.innerHTML = `<div class="player-placeholder">❌ 视频加载失败</div>`;
+        initGameLocalFallback();
     }
 }
 
-// 输入链接解析播放
-function loadUserVideo() {
-    const input = document.getElementById('videoUrlInput');
-    if (!input) return;
-    const url = input.value.trim();
-    if (!url) {
-        alert('请输入视频链接或ID');
-        return;
-    }
-    
-    // 1. 尝试匹配 Bilibili
-    const bvMatch = url.match(/(BV[a-zA-Z0-9]{10})/i);
-    if (bvMatch) {
-        loadVideo('bilibili', bvMatch[1]);
-        return;
-    }
-    
-    // 2. 尝试匹配 YouTube
-    const ytMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/i);
-    if (ytMatch) {
-        loadVideo('youtube', ytMatch[1]);
-        return;
-    }
-    
-    // 3. 尝试匹配 AcFun
-    const acMatch = url.match(/ac([0-9]+)/i);
-    if (acMatch) {
-        loadVideo('acfun', acMatch[1]);
-        return;
-    }
-    
-    // 4. 通用嵌入处理（如果是直接 iframe 或者常规 embed 链接）
-    if (/^https?:\/\//i.test(url)) {
-        const playerContainer = document.getElementById('videoPlayerContainer');
-        if (playerContainer) {
-            playerContainer.innerHTML = `
-                <iframe src="${url}" 
-                        scrolling="yes" 
-                        border="0" 
-                        frameborder="no" 
-                        framespacing="0" 
-                        allowfullscreen="true">
-                </iframe>
-            `;
+function initGameLocalFallback() {
+    const local = localStorage.getItem('toolbox_v2_game_scores');
+    if (local) {
+        try {
+            gameScores = JSON.parse(local);
+        } catch (e) {
+            gameScores = {
+                clickFrenzy: [],
+                reactionTime: [],
+                mathMaster: []
+            };
         }
-    } else {
-        alert('无法解析该视频链接。请输入包含 Bilibili BV号、YouTube视频ID 或 AcFun ac号 的地址。');
+    }
+    const activeTab = document.querySelector('.lb-tab.active');
+    if (activeTab) {
+        showLeaderboard(activeTab.getAttribute('data-game'));
     }
 }
 
-// 渲染预设视频列表
-function renderPresetVideos() {
-    const container = document.querySelector('.video-presets-grid');
-    if (!container) return;
+async function saveGameScores() {
+    localStorage.setItem('toolbox_v2_game_scores', JSON.stringify(gameScores));
     
-    container.innerHTML = '';
-    presetVideos.forEach(v => {
-        const card = document.createElement('div');
-        card.className = 'video-preset-card';
-        card.onclick = () => loadVideo(v.platform, v.videoId);
+    if (typeof isFirebaseConfigured === 'function' && isFirebaseConfigured()) {
+        try {
+            await db.ref(GAME_SCORES_PATH).set(gameScores);
+        } catch (e) {
+            console.error('云端保存游戏分数失败: ' + e.message);
+        }
+    }
+}
+
+function startGame(gameId) {
+    currentGame = gameId;
+    document.querySelector('.game-cards-container').style.display = 'none';
+    document.getElementById('leaderboardArea').style.display = 'none';
+    document.getElementById('gamePlayArea').style.display = 'block';
+    
+    const ui = document.getElementById('gameUI');
+    const title = document.getElementById('currentGameTitle');
+    
+    if (gameId === 'clickFrenzy') {
+        title.innerText = '疯狂点击 (Click Frenzy)';
+        initClickFrenzy(ui);
+    } else if (gameId === 'reactionTime') {
+        title.innerText = '极速反应 (Reaction Time)';
+        initReactionTime(ui);
+    } else if (gameId === 'mathMaster') {
+        title.innerText = '速算大师 (Math Master)';
+        initMathMaster(ui);
+    }
+}
+
+function exitGame() {
+    if (gameTimer) clearTimeout(gameTimer);
+    if (gameTimer) clearInterval(gameTimer);
+    currentGame = null;
+    document.querySelector('.game-cards-container').style.display = 'grid';
+    document.getElementById('leaderboardArea').style.display = 'block';
+    document.getElementById('gamePlayArea').style.display = 'none';
+    document.getElementById('gameUI').innerHTML = '';
+}
+
+function recordScore(gameId, score, isHigherBetter = true) {
+    let scores = gameScores[gameId];
+    
+    // Check if high score
+    let isHigh = false;
+    if (scores.length < 5) {
+        isHigh = true;
+    } else {
+        const worstScore = scores[scores.length - 1].score;
+        if (isHigherBetter) {
+            if (score > worstScore) isHigh = true;
+        } else {
+            if (score < worstScore) isHigh = true;
+        }
+    }
+    
+    if (isHigh) {
+        setTimeout(() => {
+            let name = prompt(`新记录！得分为 ${score}，请输入你的大名：`, "匿名摸鱼人");
+            if (name) {
+                scores.push({ name: name, score: score, date: new Date().toLocaleDateString() });
+                scores.sort((a, b) => isHigherBetter ? b.score - a.score : a.score - b.score);
+                scores.splice(5); // Keep top 5
+                saveGameScores();
+                showLeaderboard(gameId);
+            }
+        }, 100);
+    }
+}
+
+// 1. Click Frenzy
+function initClickFrenzy(ui) {
+    let clicks = 0;
+    let timeLeft = 10;
+    let playing = false;
+    
+    ui.innerHTML = `
+        <div style="font-size: 20px; font-weight: bold; margin-bottom: 20px;">
+            时间: <span id="cfTime">${timeLeft}</span>s | 点击数: <span id="cfClicks">0</span>
+        </div>
+        <div id="cfBtn" class="click-target">开始</div>
+    `;
+    
+    const btn = document.getElementById('cfBtn');
+    btn.onclick = () => {
+        if (!playing && timeLeft === 10) {
+            playing = true;
+            btn.innerText = '点我！';
+            gameTimer = setInterval(() => {
+                timeLeft--;
+                document.getElementById('cfTime').innerText = timeLeft;
+                if (timeLeft <= 0) {
+                    clearInterval(gameTimer);
+                    playing = false;
+                    btn.innerText = '结束';
+                    btn.onclick = null;
+                    recordScore('clickFrenzy', clicks, true);
+                    setTimeout(() => exitGame(), 2000);
+                }
+            }, 1000);
+        }
         
-        let platformLabel = v.platform.toUpperCase();
-        let badgeClass = v.platform;
-        if (v.platform === 'bilibili') platformLabel = 'Bilibili';
-        if (v.platform === 'acfun') platformLabel = 'AcFun';
-        if (v.platform === 'youtube') platformLabel = 'YouTube';
+        if (playing) {
+            clicks++;
+            document.getElementById('cfClicks').innerText = clicks;
+        }
+    };
+}
+
+// 2. Reaction Time
+function initReactionTime(ui) {
+    let state = 'waiting'; // waiting, ready, done
+    let startTime;
+    
+    ui.innerHTML = `
+        <div id="rtTarget" class="reaction-target">点击开始</div>
+        <div id="rtResult" style="margin-top: 20px; font-size: 18px; font-weight: bold;"></div>
+    `;
+    
+    const target = document.getElementById('rtTarget');
+    
+    target.onmousedown = () => {
+        if (state === 'waiting') {
+            target.innerText = '等待变绿...';
+            target.style.background = '#ff9500';
+            state = 'preparing';
+            
+            const delay = 1500 + Math.random() * 3000;
+            gameTimer = setTimeout(() => {
+                state = 'ready';
+                target.innerText = '点！';
+                target.classList.add('ready');
+                startTime = Date.now();
+            }, delay);
+        } else if (state === 'preparing') {
+            clearTimeout(gameTimer);
+            target.innerText = '太早了！点击重试';
+            target.style.background = '#ff3b30';
+            state = 'waiting';
+        } else if (state === 'ready') {
+            const time = Date.now() - startTime;
+            state = 'done';
+            target.innerText = `${time} ms`;
+            target.classList.remove('ready');
+            target.style.background = '#0071e3';
+            recordScore('reactionTime', time, false);
+            setTimeout(() => {
+                target.innerText = '点击重新开始';
+                target.style.background = '#ff3b30';
+                state = 'waiting';
+            }, 2000);
+        }
+    };
+}
+
+// 3. Math Master
+function initMathMaster(ui) {
+    let score = 0;
+    let timeLeft = 15;
+    let playing = false;
+    let currentAnswer = 0;
+    
+    ui.innerHTML = `
+        <div style="font-size: 20px; font-weight: bold; margin-bottom: 20px;">
+            时间: <span id="mmTime">${timeLeft}</span>s | 得分: <span id="mmScore">0</span>
+        </div>
+        <div id="mmProblem" class="math-problem">点击开始</div>
+        <input type="number" id="mmInput" class="math-input" disabled placeholder="?">
+        <button id="mmStartBtn" class="form-btn blue-btn" style="margin-top: 15px;">开始挑战</button>
+    `;
+    
+    const problem = document.getElementById('mmProblem');
+    const input = document.getElementById('mmInput');
+    const startBtn = document.getElementById('mmStartBtn');
+    
+    function nextProblem() {
+        const ops = ['+', '-', '*'];
+        const op = ops[Math.floor(Math.random() * ops.length)];
+        let a, b;
+        if (op === '+') {
+            a = Math.floor(Math.random() * 50) + 1;
+            b = Math.floor(Math.random() * 50) + 1;
+            currentAnswer = a + b;
+        } else if (op === '-') {
+            a = Math.floor(Math.random() * 50) + 20;
+            b = Math.floor(Math.random() * 20) + 1;
+            currentAnswer = a - b;
+        } else if (op === '*') {
+            a = Math.floor(Math.random() * 10) + 2;
+            b = Math.floor(Math.random() * 10) + 2;
+            currentAnswer = a * b;
+        }
+        problem.innerText = `${a} ${op} ${b} = ?`;
+        input.value = '';
+    }
+    
+    startBtn.onclick = () => {
+        score = 0;
+        timeLeft = 15;
+        playing = true;
+        startBtn.style.display = 'none';
+        input.disabled = false;
+        input.focus();
+        document.getElementById('mmScore').innerText = score;
+        document.getElementById('mmTime').innerText = timeLeft;
         
-        card.innerHTML = `
-            <span class="platform-badge ${badgeClass}">${platformLabel}</span>
-            <span class="video-title" title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</span>
+        nextProblem();
+        
+        gameTimer = setInterval(() => {
+            timeLeft--;
+            document.getElementById('mmTime').innerText = timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(gameTimer);
+                playing = false;
+                input.disabled = true;
+                problem.innerText = '时间到！';
+                recordScore('mathMaster', score, true);
+                setTimeout(() => {
+                    startBtn.style.display = 'block';
+                    startBtn.innerText = '重新开始';
+                }, 2000);
+            }
+        }, 1000);
+    };
+    
+    input.oninput = () => {
+        if (playing && parseInt(input.value) === currentAnswer) {
+            score++;
+            document.getElementById('mmScore').innerText = score;
+            nextProblem();
+        }
+    };
+}
+
+function showLeaderboard(gameId, tabBtn = null) {
+    if (tabBtn) {
+        document.querySelectorAll('.lb-tab').forEach(b => b.classList.remove('active'));
+        tabBtn.classList.add('active');
+    } else {
+        // Find the matching tab
+        document.querySelectorAll('.lb-tab').forEach(b => {
+            if (b.getAttribute('data-game') === gameId) {
+                b.classList.add('active');
+            } else {
+                b.classList.remove('active');
+            }
+        });
+    }
+    
+    const container = document.getElementById('leaderboardContainer');
+    const scores = gameScores[gameId];
+    
+    if (!scores || scores.length === 0) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 20px;">暂无记录，快来霸榜！</div>';
+        return;
+    }
+    
+    let html = '<ul class="leaderboard-list">';
+    scores.forEach((s, i) => {
+        let suffix = '';
+        if (gameId === 'reactionTime') suffix = ' ms';
+        if (gameId === 'clickFrenzy') suffix = ' 次';
+        if (gameId === 'mathMaster') suffix = ' 题';
+        
+        let rankMedal = i + 1;
+        if (i === 0) rankMedal = '🥇';
+        if (i === 1) rankMedal = '🥈';
+        if (i === 2) rankMedal = '🥉';
+        
+        html += `
+            <li class="leaderboard-item">
+                <span class="leaderboard-rank">${rankMedal}</span>
+                <span class="leaderboard-name">${escapeHtml(s.name)}</span>
+                <span class="leaderboard-score">${s.score}${suffix}</span>
+            </li>
         `;
-        container.appendChild(card);
     });
+    html += '</ul>';
+    container.innerHTML = html;
 }
 
 // ============================================================
@@ -569,9 +802,12 @@ function renderFishPage() {
     if (dateInput) {
         dateInput.valueAsDate = new Date();
     }
-    // 加载文章和视频卡片
+    // 加载文章和游戏分数
     initFishDatabase();
-    renderPresetVideos();
+    initGameDatabase();
+    
+    // 渲染排行榜 (默认显示疯狂点击)
+    showLeaderboard('clickFrenzy');
     
     // 默认切换到“已发布文章”区
     switchFishTab('posts');
@@ -585,15 +821,32 @@ function renderFishPage() {
     // 初始化市场情绪检测
     initMarketSentiment();
     
-    // 初始化音乐播放器
-    initMusicPlayer();
+    // 初始化摸鱼倒计时
+    initCountdown();
+}
+
+function toggleSidebarModule(headerEl) {
+    const moduleEl = headerEl.closest('.sidebar-module');
+    if (moduleEl) {
+        moduleEl.classList.toggle('collapsed');
+    }
 }
 
 // ============================================================
 // 📈 大A监控引擎 (A-Share Monitor)
 // ============================================================
 let stockWatchList = ['sh513310']; // 默认只保留 sh513310
+let stockExpandedState = {};
 let stockMonitorInterval = null;
+
+function toggleStock(code) {
+    if (stockExpandedState[code] === undefined) {
+        stockExpandedState[code] = false;
+    } else {
+        stockExpandedState[code] = !stockExpandedState[code];
+    }
+    renderStocks();
+}
 
 function initStockMonitor() {
     const savedStocks = localStorage.getItem('toolbox_v2_stocks');
@@ -666,51 +919,96 @@ function renderStocks() {
             strokeColor = '#49aa19';
         }
         
-        // 绘制五个点的简单 SVG 走势折线
-        let svgPath = "";
-        if (highPrice === lowPrice) {
-            svgPath = "0,20 25,20 50,20 75,20 100,20";
-        } else {
-            const scaleY = (val) => 35 - ((val - lowPrice) / (highPrice - lowPrice)) * 30;
-            const p1 = scaleY(openPrice);
-            const p5 = scaleY(currentPrice);
-            let p2, p3, p4;
-            if (currentPrice >= openPrice) {
-                // 涨：开 -> 低 -> 中 -> 高 -> 现价
-                p2 = scaleY(lowPrice);
-                p3 = scaleY((lowPrice + highPrice) / 2);
-                p4 = scaleY(highPrice);
+        const isExpanded = stockExpandedState[code] !== false; // 默认展开
+
+        let chartHtml = "";
+        let sentimentHtml = "";
+
+        if (isExpanded) {
+            // 绘制五个点的简单 SVG 走势折线
+            let svgPath = "";
+            if (highPrice === lowPrice) {
+                svgPath = "0,20 25,20 50,20 75,20 100,20";
             } else {
-                // 跌：开 -> 高 -> 中 -> 低 -> 现价
-                p2 = scaleY(highPrice);
-                p3 = scaleY((lowPrice + highPrice) / 2);
-                p4 = scaleY(lowPrice);
+                const scaleY = (val) => 35 - ((val - lowPrice) / (highPrice - lowPrice)) * 30;
+                const p1 = scaleY(openPrice);
+                const p5 = scaleY(currentPrice);
+                let p2, p3, p4;
+                if (currentPrice >= openPrice) {
+                    // 涨：开 -> 低 -> 中 -> 高 -> 现价
+                    p2 = scaleY(lowPrice);
+                    p3 = scaleY((lowPrice + highPrice) / 2);
+                    p4 = scaleY(highPrice);
+                } else {
+                    // 跌：开 -> 高 -> 中 -> 低 -> 现价
+                    p2 = scaleY(highPrice);
+                    p3 = scaleY((lowPrice + highPrice) / 2);
+                    p4 = scaleY(lowPrice);
+                }
+                svgPath = `0,${p1} 25,${p2} 50,${p3} 75,${p4} 100,${p5}`;
             }
-            svgPath = `0,${p1} 25,${p2} 50,${p3} 75,${p4} 100,${p5}`;
+            
+            chartHtml = `
+                <svg class="stock-chart" viewBox="0 0 100 40" preserveAspectRatio="none">
+                    <polyline points="${svgPath}" fill="none" stroke="${strokeColor}" stroke-width="1.5" stroke-linejoin="round"/>
+                </svg>
+            `;
+
+            // 计算个股情绪
+            let score = 50 + (parseFloat(changePercent) / 3) * 50;
+            score = Math.max(0, Math.min(100, score));
+            const sentimentLevel = getSentimentLevel(Math.round(score));
+            
+            sentimentHtml = `
+                <div class="sentiment-mini-header" style="margin-top: 8px;">
+                    <span class="sentiment-mini-label" style="font-size: 11px; color: var(--text-muted);">情绪</span>
+                    <span class="sentiment-mini-score ${sentimentLevel.class}" style="font-size: 12px; font-weight: bold;">${sentimentLevel.label} ${Math.round(score)}</span>
+                </div>
+                <div class="sentiment-bar" style="height: 4px; margin-top: 4px; margin-bottom: 2px;">
+                    <div class="sentiment-bar-fill ${sentimentLevel.class}" style="width: ${score}%"></div>
+                </div>
+            `;
         }
-        
-        const chartHtml = `
-            <svg class="stock-chart" viewBox="0 0 100 40" preserveAspectRatio="none">
-                <polyline points="${svgPath}" fill="none" stroke="${strokeColor}" stroke-width="1.5" stroke-linejoin="round"/>
-            </svg>
-        `;
         
         const item = document.createElement('div');
         item.className = 'stock-item';
-        item.innerHTML = `
-            <button class="stock-del-btn" onclick="removeStock('${code}')" title="删除">✕</button>
-            <div class="stock-item-top">
-                <div>
-                    <div class="stock-name">${escapeHtml(name)}</div>
-                    <div class="stock-code">${escapeHtml(code)}</div>
+        item.style.cursor = 'pointer';
+        item.onclick = (e) => {
+            if (e.target.tagName.toLowerCase() !== 'button') {
+                toggleStock(code);
+            }
+        };
+
+        if (isExpanded) {
+            item.innerHTML = `
+                <button class="stock-del-btn" onclick="removeStock('${code}')" title="删除">✕</button>
+                <div class="stock-item-top">
+                    <div>
+                        <div class="stock-name">${escapeHtml(name)}</div>
+                        <div class="stock-code">${escapeHtml(code)}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div class="stock-price ${colorClass}">${price}</div>
+                        <div class="stock-change ${colorClass}">${prefix}${change} (${prefix}${changePercent}%)</div>
+                    </div>
                 </div>
-                <div style="text-align:right;">
-                    <div class="stock-price ${colorClass}">${price}</div>
-                    <div class="stock-change ${colorClass}">${prefix}${change} (${prefix}${changePercent}%)</div>
+                ${chartHtml}
+                ${sentimentHtml}
+            `;
+        } else {
+            item.innerHTML = `
+                <button class="stock-del-btn" onclick="removeStock('${code}')" title="删除">✕</button>
+                <div class="stock-item-top" style="margin-bottom: 0; align-items: center;">
+                    <div>
+                        <div class="stock-name">${escapeHtml(name)}</div>
+                    </div>
+                    <div style="text-align:right;">
+                        <div class="stock-price ${colorClass}">${price} <span class="stock-change ${colorClass}" style="font-size: 12px; margin-left: 4px;">${prefix}${changePercent}%</span></div>
+                    </div>
                 </div>
-            </div>
-            ${chartHtml}
-        `;
+            `;
+        }
+        
         container.appendChild(item);
     });
 }
@@ -1195,6 +1493,110 @@ function renderSentiment(data) {
         </div>
         <div class="sentiment-hint" title="恐惧值说明：0-20 极度恐惧（市场恐慌，可能是机会）；20-40 恐惧（情绪偏空）；40-60 中性；60-80 贪婪（情绪乐观）；80-100 极度贪婪（市场过热，需谨慎）。恐惧值越低代表市场越恐慌，越高代表越贪婪。">
             <span class="sentiment-hint-icon">ℹ️ 恐惧值越低越恐慌，越高越贪婪</span>
+        </div>
+    `;
+}
+
+// ============================================================
+// ⏳ 摸鱼倒计时 (Countdown Monitor)
+// ============================================================
+let countdownInterval = null;
+
+function initCountdown() {
+    updateCountdown();
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(updateCountdown, 1000);
+}
+
+function updateCountdown() {
+    const container = document.getElementById('countdownMonitorList');
+    if (!container) return;
+
+    const now = new Date();
+    
+    // 1. 下班倒计时 (假设18:30下班)
+    let workEnd = new Date(now);
+    workEnd.setHours(18, 30, 0, 0);
+    let workEndDiff = workEnd - now;
+    let workEndStr = '';
+    if (workEndDiff > 0) {
+        let h = Math.floor(workEndDiff / 3600000);
+        let m = Math.floor((workEndDiff % 3600000) / 60000);
+        let s = Math.floor((workEndDiff % 60000) / 1000);
+        workEndStr = `${h}小时 ${m}分钟 ${s}秒`;
+    } else {
+        workEndStr = "已下班！🎉";
+    }
+
+    // 2. 周末倒计时 (距离本周六 00:00:00)
+    let weekend = new Date(now);
+    let dayOfWeek = now.getDay(); // 0(Sun) to 6(Sat)
+    let daysToSaturday = 6 - dayOfWeek;
+    if (dayOfWeek === 6 || dayOfWeek === 0) {
+        weekend = null; // 当前就是周末
+    } else {
+        weekend.setDate(now.getDate() + daysToSaturday);
+        weekend.setHours(0, 0, 0, 0);
+    }
+    
+    let weekendStr = '';
+    if (weekend) {
+        let weekendDiff = weekend - now;
+        let d = Math.floor(weekendDiff / 86400000);
+        let h = Math.floor((weekendDiff % 86400000) / 3600000);
+        let m = Math.floor((weekendDiff % 3600000) / 60000);
+        let s = Math.floor((weekendDiff % 60000) / 1000);
+        weekendStr = `${d}天 ${h}小时 ${m}分钟 ${s}秒`;
+    } else {
+        weekendStr = "正在享受周末！🏖️";
+    }
+
+    // 3. 假期倒计时
+    const holidays = [
+        { name: '中秋节', date: '2026-09-25T00:00:00' },
+        { name: '国庆节', date: '2026-10-01T00:00:00' },
+        { name: '元旦', date: '2027-01-01T00:00:00' },
+        { name: '春节', date: '2027-02-06T00:00:00' },
+        { name: '清明节', date: '2027-04-05T00:00:00' },
+        { name: '劳动节', date: '2027-05-01T00:00:00' },
+        { name: '端午节', date: '2027-06-09T00:00:00' },
+        { name: '中秋节', date: '2027-09-15T00:00:00' },
+        { name: '国庆节', date: '2027-10-01T00:00:00' }
+    ];
+    
+    let nextHoliday = null;
+    let holidayStr = '';
+    for (let h of holidays) {
+        let hDate = new Date(h.date);
+        if (hDate > now) {
+            nextHoliday = h;
+            break;
+        }
+    }
+    
+    if (nextHoliday) {
+        let holidayDiff = new Date(nextHoliday.date) - now;
+        let d = Math.floor(holidayDiff / 86400000);
+        let h = Math.floor((holidayDiff % 86400000) / 3600000);
+        let m = Math.floor((holidayDiff % 3600000) / 60000);
+        let s = Math.floor((holidayDiff % 60000) / 1000);
+        holidayStr = `距离 <strong>${nextHoliday.name}</strong> 还有 ${d}天 ${h}小时 ${m}分钟 ${s}秒`;
+    } else {
+        holidayStr = "暂无假期数据";
+    }
+
+    container.innerHTML = `
+        <div class="countdown-item">
+            <div class="countdown-label">🕒 距离下午 18:30 下班</div>
+            <div class="countdown-value">${workEndStr}</div>
+        </div>
+        <div class="countdown-item">
+            <div class="countdown-label">🎉 距离周末 (周六)</div>
+            <div class="countdown-value">${weekendStr}</div>
+        </div>
+        <div class="countdown-item" style="border-bottom: none; margin-bottom: 0; padding-bottom: 0;">
+            <div class="countdown-label">🌴 假期倒计时</div>
+            <div class="countdown-value" style="font-size: 13px;">${holidayStr}</div>
         </div>
     `;
 }

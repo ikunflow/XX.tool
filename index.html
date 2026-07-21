@@ -257,7 +257,7 @@
             <div class="apple-nav-title">🐟 鱼塘空间 (Fish Studio)</div>
             <div class="fish-tabs">
                 <button class="fish-tab-btn active" onclick="switchFishTab('posts')" id="btnFishTabPosts">📚 技术分享</button>
-                <button class="fish-tab-btn" onclick="switchFishTab('video')" id="btnFishTabVideo">📺 视频区</button>
+                <button class="fish-tab-btn" onclick="switchFishTab('game')" id="btnFishTabGame">🎮 竞技区</button>
                 <button class="fish-tab-btn" onclick="switchFishTab('ai')" id="btnFishTabAi">🤖 AI 助手</button>
             </div>
             <button class="form-btn blue-btn" onclick="switchView('dashboard')">← 返回主看板</button>
@@ -282,95 +282,15 @@
                             </div>
                         </div>
                         
-                        <div class="blog-sidebar-section music-module">
-                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 12px; flex-wrap: wrap; gap: 6px;">
-                                <h4 style="margin:0;">🎵 音乐空间</h4>
-                                <div class="music-sync-row">
-                                    <label class="ab-sync-label" title="开启后自动同步到 Firebase">
-                                        <input type="checkbox" id="musicCloudCheckbox" onchange="toggleMusicCloud(this.checked)">
-                                        <span>云端同步</span>
-                                    </label>
-                                    <span id="musicSyncStatus" class="audiobook-sync-status offline">未连接</span>
-                                    <button class="action-icon-btn" onclick="forceMusicSyncToCloud()" title="立即上传">⬆️</button>
-                                    <button class="action-icon-btn" onclick="forceMusicSyncFromCloud()" title="从云端拉取">⬇️</button>
-                                </div>
+                        <div class="blog-sidebar-section sidebar-module">
+                            <div class="sidebar-module-header" style="cursor: pointer; display: flex; align-items: center;" onclick="toggleSidebarModule(this)">
+                                <h4 style="margin:0;">⏳ 摸鱼倒计时</h4>
                             </div>
-                            <div class="music-search-box">
-                                <input type="text" id="musicPlaylistInput" placeholder="网易云歌单ID/链接" title="例如: 3778678 或分享链接">
-                                <button onclick="addMusicPlaylist()">加载</button>
-                            </div>
-                            <div id="musicPlayerContainer" style="margin-top: 10px; width: 100%; border-radius: 8px; overflow: hidden; background: var(--card-bg);">
-                                <div style="text-align:center; padding: 20px 0; color: var(--text-muted); font-size: 12px;">请输入歌单ID加载播放器</div>
+                            <div id="countdownMonitorList" class="countdown-list-container" style="padding: 10px 0 0 0;">
+                                <div style="text-align:center; color:var(--text-muted); font-size:12px; padding: 20px 0;">计算中...</div>
                             </div>
                         </div>
 
-                        <div class="blog-sidebar-section audiobook-module">
-                            <div class="ab-module-header">
-                                <h4 style="margin:0;">🎧 本地听书</h4>
-                                <div class="ab-module-actions">
-                                    <button class="ab-view-toggle" id="btnAudioViewPlayer" onclick="switchAudiobookView('player')" title="播放器视图">🎵</button>
-                                    <button class="ab-view-toggle" id="btnAudioViewShelf" onclick="switchAudiobookView('bookshelf')" title="书柜视图">📚</button>
-                                    <input type="file" id="novelFileInput" accept=".txt" style="display:none;" onchange="handleNovelUpload(event)">
-                                    <button class="action-icon-btn" onclick="document.getElementById('novelFileInput').click()" title="导入TXT">➕</button>
-                                    <button class="action-icon-btn" onclick="openNovelSearchModal()" title="找书指南">🔍</button>
-                                </div>
-                            </div>
-
-                            <div class="ab-search-bar">
-                                <input type="text" id="audioSearchInput" class="form-input" placeholder="搜索书名或章节..." onkeydown="if(event.key==='Enter') handleAudioSearch()">
-                                <button class="form-btn" onclick="handleAudioSearch()" title="本地搜索">🔍</button>
-                                <button class="form-btn blue-btn" onclick="searchNovelOnline()" title="去 Bing 搜索">🌐</button>
-                            </div>
-                            <div id="audioSearchResults" class="ab-search-results" style="display:none;"></div>
-
-                            <div id="audioPlayerView" class="audiobook-controls" style="display:flex; flex-direction:column; gap:8px;">
-                                <div class="ab-sync-row">
-                                    <label class="ab-sync-label" title="开启后自动同步到 Firebase">
-                                        <input type="checkbox" id="audiobookCloudCheckbox" onchange="toggleAudiobookCloud(this.checked)">
-                                        <span>云端同步</span>
-                                    </label>
-                                    <span id="audiobookSyncStatus" class="audiobook-sync-status offline">未连接</span>
-                                    <button class="action-icon-btn" onclick="forceAudiobookSyncToCloud()" title="立即上传">⬆️</button>
-                                    <button class="action-icon-btn" onclick="forceAudiobookSyncFromCloud()" title="从云端拉取">⬇️</button>
-                                </div>
-                                <select id="audioBookSelect" class="form-input" style="padding: 6px; font-size: 12px; height: auto;" onchange="onBookSelectChange()">
-                                    <option value="">-- 请选择小说 --</option>
-                                </select>
-                                <select id="audioChapterSelect" class="form-input" style="padding: 6px; font-size: 12px; height: auto;" onchange="onChapterSelectChange()">
-                                    <option value="">-- 请选择章节 --</option>
-                                </select>
-
-                                <div class="ab-progress-row">
-                                    <span id="audioProgressInfo">未开始</span>
-                                </div>
-                                <input type="range" id="audioProgressBar" class="ab-progress-bar" min="0" max="0" value="0" onchange="seekParagraph(this.value)" title="段落进度">
-
-                                <div class="ab-main-controls">
-                                    <button class="control-btn" onclick="prevChapter()" style="padding: 4px 8px; font-size:12px; flex:1;">上一章</button>
-                                    <button class="control-btn" onclick="prevParagraph()" title="上一句" style="padding: 4px 8px; font-size:12px; flex:1;">⏮</button>
-                                    <button class="control-btn play-btn" onclick="toggleAudioPlay()" id="btnAudioPlay" style="padding: 4px 14px; font-size:12px; flex:1.5;">▶ 播放</button>
-                                    <button class="control-btn" onclick="nextParagraph()" title="下一句" style="padding: 4px 8px; font-size:12px; flex:1;">⏭</button>
-                                    <button class="control-btn" onclick="nextChapter()" style="padding: 4px 8px; font-size:12px; flex:1;">下一章</button>
-                                </div>
-
-                                <div class="ab-voice-row">
-                                    <select id="audioVoiceSelect" onchange="updateAudioVoice()" style="padding:2px; font-size:11px; background:var(--container-bg); border:1px solid var(--border-color); color:var(--text-color);"></select>
-                                    <div class="ab-rate-wrap">
-                                        <input type="range" id="audioRate" min="0.5" max="3" step="0.1" value="1.5" style="width:60px;" onchange="updateAudioRate()">
-                                        <span id="audioRateDisplay" style="font-size:11px; color:var(--accent-color); font-weight:bold; min-width:32px; text-align:right;">1.5x</span>
-                                    </div>
-                                    <button class="action-icon-btn" style="font-size:14px; color:var(--danger-color);" onclick="deleteCurrentBook()" title="删除当前小说">🗑️</button>
-                                </div>
-
-                                <div id="miniReaderText" style="margin-top:8px; max-height:160px; overflow-y:auto; font-size:12px; line-height:1.6; color:var(--text-color); padding:8px; background:var(--card-bg); border-radius:4px; border:1px solid var(--border-color); white-space:pre-wrap; word-break:break-all;">
-                                    请导入或选择小说开始听书...
-                                </div>
-                            </div>
-
-                            <div id="audioBookshelfView" class="ab-bookshelf-view" style="display:none;">
-                                <div id="audioBookshelfGrid" class="ab-bookshelf-grid"></div>
-                            </div>
-                        </div>
                     </div>
                     <div class="blog-main">
                         <div class="blog-main-header">
@@ -383,9 +303,9 @@
                     </div>
                     <div class="fish-right-sidebar">
                         <div class="sidebar-module">
-                            <div class="sidebar-module-header">
+                            <div class="sidebar-module-header" style="cursor: pointer;" onclick="toggleSidebarModule(this)">
                                 <h4>📈 大A监控</h4>
-                                <button class="action-icon-btn" onclick="addNewStock()" title="添加股票/基金">＋</button>
+                                <button class="action-icon-btn" onclick="event.stopPropagation(); addNewStock()" title="添加股票/基金">＋</button>
                             </div>
                             <div id="stockMonitorList" class="stock-list-container">
                                 <div style="text-align:center; color:var(--text-muted); font-size:12px; padding: 20px 0;">加载中...</div>
@@ -393,9 +313,9 @@
                         </div>
                         
                         <div class="sidebar-module" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
-                            <div class="sidebar-module-header">
+                            <div class="sidebar-module-header" style="cursor: pointer;" onclick="toggleSidebarModule(this)">
                                 <h4>📰 市场动向</h4>
-                                <button class="action-icon-btn" onclick="fetchMarketNews()" title="手动刷新">↻</button>
+                                <button class="action-icon-btn" onclick="event.stopPropagation(); fetchMarketNews()" title="手动刷新">↻</button>
                             </div>
                             <div id="marketNewsList" class="news-list-container">
                                 <div style="text-align:center; color:var(--text-muted); font-size:12px; padding: 20px 0;">加载中...</div>
@@ -403,9 +323,9 @@
                         </div>
                         
                         <div class="sidebar-module" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
-                            <div class="sidebar-module-header">
+                            <div class="sidebar-module-header" style="cursor: pointer;" onclick="toggleSidebarModule(this)">
                                 <h4>📊 情绪检测</h4>
-                                <button class="action-icon-btn" onclick="fetchMarketSentiment()" title="手动刷新">↻</button>
+                                <button class="action-icon-btn" onclick="event.stopPropagation(); fetchMarketSentiment()" title="手动刷新">↻</button>
                             </div>
                             <div id="sentimentMonitorList" class="sentiment-list-container">
                                 <div style="text-align:center; color:var(--text-muted); font-size:12px; padding: 20px 0;">加载中...</div>
@@ -415,35 +335,59 @@
                 </div>
             </div>
             
-            <!-- 📺 视频区 -->
-            <div id="fishTabVideo" class="fish-tab-pane" style="display: none;">
+            <!-- 🎮 竞技区 -->
+            <div id="fishTabGame" class="fish-tab-pane" style="display: none;">
                 <div class="apple-dashboard-grid" style="max-width: 1200px; margin: 0 auto;">
                     <div class="apple-dashboard-col" style="grid-column: 1 / -1;">
-                        <div class="apple-card">
-                            <h3>📺 视频直通车 (B站 / A站 / YouTube)</h3>
-                            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 12px;">直接在下方嵌入播放您喜爱的视频平台内容</p>
-                            <div class="form-group" style="flex-direction: row; gap: 8px; margin-bottom: 15px;">
-                                <input type="text" id="videoUrlInput" class="form-input" placeholder="输入视频链接/BV号/分享链接/ac号...">
-                                <button class="form-btn blue-btn" onclick="loadUserVideo()" style="white-space:nowrap; padding: 8px 18px;">播放</button>
-                            </div>
-                            <div id="videoPlayerContainer" class="apple-video-player-wrap">
-                                <div class="player-placeholder">
-                                    <div>
-                                        <span style="font-size: 32px; display: block; margin-bottom: 10px;">💡</span>
-                                        <span>在上方输入视频链接，或点击下方精选视频开始播放</span>
-                                    </div>
+                        
+                        <!-- 游戏选择区 -->
+                        <div class="apple-card" style="margin-bottom: 20px;">
+                            <h3>🎮 摸鱼竞技场</h3>
+                            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">选择一款小游戏，挑战最高分，留下你的名字！</p>
+                            <div class="game-cards-container">
+                                <div class="game-card" onclick="startGame('clickFrenzy')">
+                                    <div class="game-icon">🖱️</div>
+                                    <div class="game-name">疯狂点击</div>
+                                    <div class="game-desc">10秒内疯狂点击目标</div>
+                                </div>
+                                <div class="game-card" onclick="startGame('reactionTime')">
+                                    <div class="game-icon">⚡</div>
+                                    <div class="game-name">极速反应</div>
+                                    <div class="game-desc">等待变绿，以最快速度点击</div>
+                                </div>
+                                <div class="game-card" onclick="startGame('mathMaster')">
+                                    <div class="game-icon">🧮</div>
+                                    <div class="game-name">速算大师</div>
+                                    <div class="game-desc">15秒内解答尽可能多的算术题</div>
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="apple-card" style="margin-top: 20px;">
-                            <h3>🔥 平台精选视频</h3>
-                            <div class="video-presets-grid">
-                                <!-- 由 JS 动态渲染 -->
+
+                        <!-- 游戏主区域 -->
+                        <div id="gamePlayArea" class="apple-card" style="display: none; text-align: center; margin-bottom: 20px; min-height: 300px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3 id="currentGameTitle">游戏名称</h3>
+                                <button class="form-btn" onclick="exitGame()">退出游戏</button>
+                            </div>
+                            <div id="gameUI" style="margin-top: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px;">
+                                <!-- 动态插入的游戏UI -->
                             </div>
                         </div>
+
+                        <!-- 排行榜区 -->
+                        <div class="apple-card" id="leaderboardArea">
+                            <h3>🏆 英雄榜 (Top 5)</h3>
+                            <div class="leaderboard-tabs" style="display: flex; gap: 10px; margin-top: 10px; margin-bottom: 15px;">
+                                <button class="form-btn lb-tab active" data-game="clickFrenzy" onclick="showLeaderboard('clickFrenzy', this)">疯狂点击</button>
+                                <button class="form-btn lb-tab" data-game="reactionTime" onclick="showLeaderboard('reactionTime', this)">极速反应</button>
+                                <button class="form-btn lb-tab" data-game="mathMaster" onclick="showLeaderboard('mathMaster', this)">速算大师</button>
+                            </div>
+                            <div id="leaderboardContainer" style="min-height: 150px;">
+                                <!-- 动态渲染排行榜 -->
+                            </div>
+                        </div>
+                        
                     </div>
-                </div>
                 </div>
             </div>
 

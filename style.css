@@ -2347,3 +2347,179 @@ footer { text-align: center; margin-top: 30px; color: var(--text-muted); font-si
     background: #34c759;
     box-shadow: 0 2px 8px rgba(52, 199, 89, 0.3);
 }
+
+/* Sidebar Module Folding */
+.sidebar-module.collapsed {
+    flex: none !important;
+}
+.sidebar-module.collapsed > :not(.sidebar-module-header) {
+    display: none !important;
+}
+
+/* Countdown Module */
+.countdown-list-container {
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+}
+.countdown-item {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+.countdown-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+.countdown-value {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--accent-color);
+}
+
+/* 🎮 Game Section Styles */
+.game-cards-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.game-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.02);
+}
+
+.game-card:hover {
+    transform: translateY(-5px);
+    border-color: var(--accent-color);
+    box-shadow: 0 8px 15px rgba(0,113,227,0.15);
+}
+
+.game-icon {
+    font-size: 36px;
+    margin-bottom: 10px;
+}
+
+.game-name {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--text-color);
+    margin-bottom: 5px;
+}
+
+.game-desc {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+/* Specific Game UI */
+.click-target {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #ff3b30, #ff9500);
+    color: white;
+    font-weight: bold;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    box-shadow: 0 4px 10px rgba(255, 59, 48, 0.4);
+    transition: transform 0.05s;
+}
+.click-target:active {
+    transform: scale(0.9);
+}
+
+.reaction-target {
+    width: 100%;
+    max-width: 400px;
+    height: 200px;
+    border-radius: 16px;
+    background: #ff3b30;
+    color: white;
+    font-size: 24px;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
+}
+.reaction-target.ready {
+    background: #34c759;
+}
+
+.math-problem {
+    font-size: 32px;
+    font-weight: bold;
+    margin-bottom: 20px;
+    color: var(--text-color);
+}
+.math-input {
+    font-size: 24px;
+    padding: 10px;
+    width: 150px;
+    text-align: center;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    outline: none;
+}
+.math-input:focus {
+    border-color: var(--accent-color);
+}
+
+/* Leaderboard */
+.lb-tab {
+    background: var(--card-bg);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+}
+.lb-tab.active {
+    background: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+.leaderboard-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.leaderboard-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--border-color);
+    font-size: 14px;
+}
+.leaderboard-item:last-child {
+    border-bottom: none;
+}
+.leaderboard-rank {
+    font-weight: bold;
+    width: 30px;
+    color: var(--accent-color);
+}
+.leaderboard-name {
+    flex: 1;
+    text-align: left;
+    color: var(--text-color);
+}
+.leaderboard-score {
+    font-weight: bold;
+    color: var(--text-color);
+}
