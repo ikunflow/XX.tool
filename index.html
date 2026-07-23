@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>起始页</title>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+    
+    <!-- Marked.js Markdown 解析库 -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <style id="themeStyle">
+        :root { --bg-color: #f5f5f7; --container-bg: rgba(255, 255, 255, 0.75); --text-color: #1d1d1f; --text-muted: #86868b; --accent-color: #0071e3; --card-bg: rgba(255, 255, 255, 0.65); --card-hover-bg: #ffffff; --border-color: rgba(0, 0, 0, 0.08); --danger-color: #ff3b30; --edit-color: #0071e3; --orange-color: #f56300; --panel-gradient: linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(245,245,247,0.9) 100%); --tag-bg: rgba(0, 113, 227, 0.1); --tag-border: rgba(0, 113, 227, 0.2); }
+        body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif; background-color: var(--bg-color); background-image: radial-gradient(circle at 50% 0%, #ffffff 0%, #f5f5f7 100%); }
+        .container { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); border: 1px solid rgba(255,255,255,0.6); }
+        .card { border-radius: 16px; backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); box-shadow: 0 4px 12px rgba(0,0,0,0.03); border: 1px solid rgba(255,255,255,0.5); transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.3s ease; }
+        .card:hover { transform: translateY(-3px) scale(1.02); box-shadow: 0 12px 24px rgba(0,0,0,0.08); border-color: rgba(0,113,227,0.3); }
+        .form-input, .form-textarea, .form-select { border-radius: 12px; background: rgba(255,255,255,0.8); border: 1px solid rgba(0,0,0,0.06); transition: all 0.2s; box-shadow: inset 0 1px 3px rgba(0,0,0,0.02); }
+        .form-input:focus, .form-textarea:focus, .form-select:focus { border-color: var(--accent-color); box-shadow: 0 0 0 3px rgba(0,113,227,0.2); background: #fff; }
+        .form-btn { border-radius: 18px; font-weight: 600; box-shadow: 0 2px 6px rgba(0,0,0,0.05); transition: all 0.3s ease; }
+        .form-btn:hover { transform: scale(1.02); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        header { background: rgba(255,255,255,0.7); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(0,0,0,0.05); }
+        .tab-item { border-radius: 10px; margin-right: 4px; }
+        .tab-item.active { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+        .apple-card { background: rgba(255,255,255,0.7); backdrop-filter: blur(20px); border-radius: 18px; border: 1px solid rgba(255,255,255,0.6); box-shadow: 0 8px 24px rgba(0,0,0,0.04); }
+        ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
+        .fish-tabs { background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.02); }
+        .fish-tab-btn.active { background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .category-title { font-weight: 600; }
+    </style>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div class="header-left">
+            <div class="editable-title-wrap" onclick="editBoardTitle()" title="点击自定义修改名称">
+                <h1 id="boardTitleDisplay">🛠️ 试玩工具箱</h1>
+                <span class="edit-icon">✏️</span>
+            </div>
+            <p>标签版 · 多标签页 · Firebase RTDB 实时同步</p>
+        </div>
+        <div class="header-right">
+            <!-- 🔥 Firebase 同步状态（紧凑药丸，始终在 header 右侧） -->
+            <div id="firebaseSyncBar" class="firebase-sync-bar offline" title="Firebase 同步状态">
+                <span id="syncIcon">🔄</span>
+                <span id="syncText">Firebase RTDB 连接初始化中...</span>
+            </div>
+            <button class="jigsaw-entry-btn" onclick="switchView('jigsaw')" title="进入拼图切割工具">
+                🧩 拼图切割工具
+            </button>
+            <div class="theme-select-box">
+                <span style="font-size: 13px; font-weight: bold;">🎭 主题：</span>
+                <select id="themeSelector" class="form-select" style="width: 140px; padding: 4px 8px;" onchange="switchTheme(this.value)">
+                    <option value="cyberpunk">🔋 赛博朋克</option>
+                    <option value="apple" selected>🍎 苹果原生</option>
+                    <option value="midnight">🌌 深邃星空</option>
+                    <option value="minimalLight">☀️ 明亮极简</option>
+                    <option value="forestGreen">🌲 森林绿意</option>
+                    <option value="neonAurora">🔮 极光霓虹</option>
+                    <option value="darkGold">🍫 优雅黑金</option>
+                </select>
+            </div>
+            <div class="lock-control-box">
+                <div id="lockStatusDot" class="lock-status-dot is-locked"></div>
+                <span id="lockStatusText" style="font-size: 13px; font-weight: bold; color: var(--danger-color);">已开启防关闭保护</span>
+                <button onclick="togglePageLock()" id="lockToggleBtn" class="form-btn red-btn" style="padding: 3px 10px; font-size: 12px;">解除固定</button>
+            </div>
+            <button class="admin-toggle-btn" onclick="toggleAdminDrawer(true)" title="打开管理面板">
+                <span class="plus-icon">+</span> 管理
+            </button>
+            <!-- 🐟页入口图标鱼 -->
+            <button class="fish-entry-btn" onclick="switchView('fish')" title="进入🐟页">
+                🐟
+            </button>
+        </div>
+    </header>
+
+    <!-- ⚙️ 管理抽屉（板块管理 / 添加卡片 / 云端同步） -->
+    <div class="admin-drawer-overlay" id="adminDrawerOverlay" onclick="toggleAdminDrawer(false)"></div>
+    <aside class="admin-drawer" id="adminDrawer" aria-hidden="true">
+        <div class="admin-drawer-header">
+            <h3>⚙️ 管理面板</h3>
+            <button class="admin-drawer-close" onclick="toggleAdminDrawer(false)" title="关闭">✕</button>
+        </div>
+        <div class="admin-drawer-body" id="adminDrawerBody">
+            <!-- 由 JS 动态填充 -->
+        </div>
+    </aside>
+
+    <!-- 🔥 顶部云端同步 + 卡片大小工具栏 -->
+    <div class="sync-toolbar" id="syncToolbar">
+        <div class="sync-toolbar-left">
+            <label class="sync-toggle-label" title="勾选后，所有修改会自动同步到云端">
+                <input type="checkbox" id="autoSyncCheckboxTop" onchange="toggleAutoSync(this.checked)">
+                <span>✅ 自动同步到云端</span>
+            </label>
+            <div class="sync-slider-wrap" title="拖动调整卡片大小（宽+高）">
+                <span class="sync-slider-icon">📐</span>
+                <input type="range" id="cardSizeSliderTop" min="160" max="380" step="10" value="200" style="width:120px;">
+                <span id="cardSizeValueTop" class="sync-slider-value">200px</span>
+            </div>
+        </div>
+        <div class="sync-toolbar-right">
+            <button onclick="forceSyncToCloud()" class="form-btn orange-btn sync-btn">⬆️ 上传到云端</button>
+            <button onclick="forceSyncFromCloud()" class="form-btn blue-btn sync-btn">⬇️ 从云端拉取</button>
+        </div>
+    </div>
+
+    <!-- 🏷️ 标签页导航 -->
+    <div class="tab-nav-bar" id="tabNavBar">
+        <!-- 标签页由 JS 动态生成 -->
+        <div class="tab-add-btn" onclick="createNewTab()" title="新建标签页">+</div>
+    </div>
+
+    <!-- 标签页内容 -->
+    <div class="tab-content-wrapper" id="tabContentWrapper">
+        <!-- 内容由 JS 动态生成 -->
+    </div>
+
+    <!-- 切图页面 -->
+    <div id="jigsawAppPage">
+        <div class="jigsaw-page-header">
+            <div class="jigsaw-page-title">🧩 3:4 比例多图批量智能切图工作台</div>
+            <div class="jigsaw-page-header-actions">
+                <button class="form-btn blue-btn" onclick="switchView('dashboard')">← 返回主看板</button>
+                <button class="form-btn red-btn" id="jigsawLockBtn" onclick="toggleJigsawPageLock()" style="padding: 6px 12px; font-size: 13px;">🔒 固定</button>
+            </div>
+        </div>
+        <div class="jigsaw-settings-bar">
+            <div class="jigsaw-settings-row">
+                <div class="jigsaw-setting-item">
+                    <label class="jigsaw-template-label">
+                        <input type="checkbox" id="jigsawTemplateToggle" checked onchange="applyJigsawTemplate(); autoRefreshAllJigsaw()">
+                        <span>📋 默认模板</span>
+                    </label>
+                    <span class="jigsaw-template-hint">勾选后：18KB / 300×400 / 数字前缀 / 前3张特殊切法</span>
+                </div>
+                <div class="jigsaw-setting-item">
+                    <span>单图体积上限：</span>
+                    <input type="number" id="jigsawMaxSizeInput" value="18" oninput="autoRefreshAllJigsaw()"><span>KB</span>
+                </div>
+                <div class="jigsaw-setting-item">
+                    <span>输出单图分辨率：</span>
+                    <input type="number" id="jigsawOutputWidth" class="jigsaw-resolution-input" value="300" min="10" max="10000" placeholder="宽" oninput="autoRefreshAllJigsaw()">
+                    <span>×</span>
+                    <input type="number" id="jigsawOutputHeight" class="jigsaw-resolution-input" value="400" min="10" max="10000" placeholder="高" oninput="autoRefreshAllJigsaw()">
+                    <span>像素</span>
+                </div>
+                <div class="jigsaw-setting-item">
+                    <span>前缀命名规则：</span>
+                    <div class="jigsaw-mode-options" data-group="jigsawPrefixType" data-default="number">
+                        <label class="jigsaw-mode-card" data-value="alpha" onclick="selectJigsawMode(this, 'jigsawPrefixType')">
+                            <span class="mode-icon m-2x1"><span></span><span></span></span>
+                            <span>英文 A/B/C</span>
+                            <span class="check-mark">✓</span>
+                        </label>
+                        <label class="jigsaw-mode-card selected" data-value="number" onclick="selectJigsawMode(this, 'jigsawPrefixType')">
+                            <span class="mode-icon m-2x1"><span></span><span></span></span>
+                            <span>数字 0/1/2</span>
+                            <span class="check-mark">✓</span>
+                        </label>
+                        <input type="radio" name="jigsawPrefixType" value="alpha" style="display:none;">
+                        <input type="radio" name="jigsawPrefixType" value="number" checked style="display:none;">
+                    </div>
+                </div>
+                <div class="jigsaw-setting-item">
+                    <span>默认切割网格：</span>
+                    <div class="jigsaw-mode-options" data-group="jigsawGlobalCutMode" data-default="2x2">
+                        <label class="jigsaw-mode-card selected" data-value="2x2" onclick="selectJigsawMode(this, 'jigsawGlobalCutMode')">
+                            <span class="mode-icon m-2x2"><span></span><span></span><span></span><span></span></span>
+                            <span>2×2 四宫格</span>
+                            <span class="check-mark">✓</span>
+                        </label>
+                        <label class="jigsaw-mode-card" data-value="2x1" onclick="selectJigsawMode(this, 'jigsawGlobalCutMode')">
+                            <span class="mode-icon m-2x1"><span></span><span></span></span>
+                            <span>2×1 横切</span>
+                            <span class="check-mark">✓</span>
+                        </label>
+                        <label class="jigsaw-mode-card" data-value="1x2" onclick="selectJigsawMode(this, 'jigsawGlobalCutMode')">
+                            <span class="mode-icon m-1x2"><span></span><span></span></span>
+                            <span>1×2 竖切</span>
+                            <span class="check-mark">✓</span>
+                        </label>
+                        <input type="radio" name="jigsawGlobalCutMode" value="2x2" checked style="display:none;">
+                        <input type="radio" name="jigsawGlobalCutMode" value="2x1" style="display:none;">
+                        <input type="radio" name="jigsawGlobalCutMode" value="1x2" style="display:none;">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- AI提示模板模块 -->
+        <div class="ai-prompt-template-section">
+            <div class="ai-prompt-header" onclick="toggleAiPromptTemplate()">
+                <span class="ai-prompt-title">🤖 AI 提示模板</span>
+                <span style="display: flex; align-items: center; gap: 10px;">
+                    <button class="ai-prompt-copy-btn" onclick="event.stopPropagation(); copyAiPromptTemplate()" title="一键复制">📋 一键复制</button>
+                    <span class="ai-prompt-toggle-icon" id="aiPromptToggleIcon">▼</span>
+                </span>
+            </div>
+            <div class="ai-prompt-content" id="aiPromptContent" style="display: none;">
+                <pre id="aiPromptCode" class="ai-prompt-code">// 可直接复用的标准指令（下次复制粘贴即可）
+
+// 生成 TypeScript 代码，导出 customGridIds 和 genGridInfos 两个常量，规则如下：
+
+// customGridIds 为 6 行 5 列二维数组，数组内每个对象单独占一行，缩进对齐，格式参考：
+
+// // 第1行
+
+// [
+
+//     { pieceType: 0, pieceId: 0 },
+
+//     { pieceType: 0, pieceId: 1 },
+
+//     ...
+
+// ],
+
+// pieceType 总范围 0 ~ 19
+
+// type 0 / 1 / 2 仅包含 pieceId 0、1；type ≥ 3 包含 pieceId 0、1、2、3
+
+// 填充顺序：按 pieceType 从小到大依次排列，同 type 内 pieceId 按 0→1→2→3 升序
+
+// genGridInfos 为一维数组，承接 customGridIds 没用完的剩余 pieceType，按同样的 id 升序规则继续排列
+
+// 代码无多余逗号和注释，格式工整</pre>
+            </div>
+        </div>
+        <div class="jigsaw-all-preview-bar" id="jigsawAllPreviewBar" style="display:none;">
+            <span class="jigsaw-all-preview-title">🖼️ 原图预览（共 0 张）</span>
+            <div class="jigsaw-all-preview-container" id="jigsawAllPreviewContainer"></div>
+        </div>
+        <div class="jigsaw-upload-area" id="jigsawDropZone" onclick="document.getElementById('jigsawFileInput').click()">
+            <span style="font-size: 15px; font-weight: bold; color: var(--accent-color);">点击或将多张图片拖拽到此处进行批量自动切割</span>
+            <input type="file" id="jigsawFileInput" accept="image/*" multiple onchange="handleJigsawFiles(this.files)">
+        </div>
+        <div id="jigsawStatus"></div>
+        <div class="jigsaw-action-bar" id="jigsawActionBar">
+            <button class="form-btn orange-btn" onclick="downloadAllJigsawGroupsZip()">📦 打包全部 ZIP</button>
+            <button class="form-btn red-btn" onclick="clearAllJigsawHistory()">🗑️ 清空历史</button>
+        </div>
+        <div id="jigsawOutputGroupsContainer"></div>
+    </div>
+
+    <!-- 🐟 鱼塘页 -->
+    <div id="fishAppPage" class="apple-page-container" style="display: none;">
+        <div class="apple-nav-bar">
+            <div class="apple-nav-title">🐟 鱼塘空间 (Fish Studio)</div>
+            <div class="fish-tabs">
+                <button class="fish-tab-btn active" onclick="switchFishTab('posts')" id="btnFishTabPosts">📚 技术分享</button>
+                <button class="fish-tab-btn" onclick="switchFishTab('game')" id="btnFishTabGame">🎮 竞技区</button>
+                <button class="fish-tab-btn" onclick="switchFishTab('ai')" id="btnFishTabAi">🤖 AI 助手</button>
+            </div>
+            <button class="form-btn blue-btn" onclick="switchView('dashboard')">← 返回主看板</button>
+        </div>
+        
+        <div class="fish-tab-content">
+            <!-- 📚 技术分享 -->
+            <div id="fishTabPosts" class="fish-tab-pane" style="display: block;">
+                <div class="blog-layout">
+                    <div class="blog-sidebar">
+                        <div class="blog-sidebar-section">
+                            <h4>📁 分类区</h4>
+                            <ul id="blogCategoryList" class="blog-filter-list">
+                                <li class="active" onclick="filterBlog('category', null)">全部</li>
+                                <!-- 动态渲染分类 -->
+                            </ul>
+                        </div>
+                        <div class="blog-sidebar-section">
+                            <h4>🏷️ 标签云</h4>
+                            <div id="fishTagsContainer" class="blog-tag-cloud">
+                                <!-- 标签云动态渲染 -->
+                            </div>
+                        </div>
+                        
+                        <div class="blog-sidebar-section sidebar-module">
+                            <div class="sidebar-module-header" style="cursor: pointer; display: flex; align-items: center;" onclick="toggleSidebarModule(this)">
+                                <h4 style="margin:0;">⏳ 摸鱼倒计时</h4>
+                            </div>
+                            <div id="countdownMonitorList" class="countdown-list-container" style="padding: 10px 0 0 0;">
+                                <div style="text-align:center; color:var(--text-muted); font-size:12px; padding: 20px 0;">计算中...</div>
+                            </div>
+                        </div>
+
+                    </div>
+                    <div class="blog-main">
+                        <div class="blog-main-header">
+                            <h3>文章列表</h3>
+                            <button class="form-btn orange-btn" onclick="openFishEditor()">➕ 发布文章</button>
+                        </div>
+                        <div id="fishPostsContainer" class="blog-article-list">
+                            <!-- 文章列表动态渲染 -->
+                        </div>
+
+                        <!-- 🌊 共享鱼塘模块 -->
+                        <div class="shared-fish-pond-module">
+                            <div class="blog-main-header">
+                                <h3 style="display: flex; align-items: center; gap: 8px;">
+                                    🌊 共享鱼塘
+                                    <span style="font-size: 12px; font-weight: normal; color: var(--text-muted);">领养一条属于你的小鱼，和大家一起游动</span>
+                                </h3>
+                                <div class="fish-pond-actions">
+                                    <button class="form-btn" id="btnClaimFish" onclick="claimMyFish()" style="background: var(--accent-color); color: #fff;">🐟 认领小鱼</button>
+                                    <button class="form-btn orange-btn" id="btnFeedFish" onclick="feedMyFish()" style="display: none;">🍼 投喂</button>
+                                </div>
+                            </div>
+                            <div id="sharedFishPond" class="fish-pond-container">
+                                <div id="fishPondOverlay" class="fish-pond-overlay">加载中...</div>
+                                <!-- 游动的鱼和食物将在这里动态生成 -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="fish-right-sidebar">
+                        <div class="sidebar-module">
+                            <div class="sidebar-module-header" style="cursor: pointer;" onclick="toggleSidebarModule(this)">
+                                <h4>📈 大A监控</h4>
+                                <button class="action-icon-btn" onclick="event.stopPropagation(); addNewStock()" title="添加股票/基金">＋</button>
+                            </div>
+                            <div id="stockMonitorList" class="stock-list-container">
+                                <div style="text-align:center; color:var(--text-muted); font-size:12px; padding: 20px 0;">加载中...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="sidebar-module" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+                            <div class="sidebar-module-header" style="cursor: pointer;" onclick="toggleSidebarModule(this)">
+                                <h4>📰 市场动向</h4>
+                                <button class="action-icon-btn" onclick="event.stopPropagation(); fetchMarketNews()" title="手动刷新">↻</button>
+                            </div>
+                            <div id="marketNewsList" class="news-list-container">
+                                <div style="text-align:center; color:var(--text-muted); font-size:12px; padding: 20px 0;">加载中...</div>
+                            </div>
+                        </div>
+                        
+                        <div class="sidebar-module" style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+                            <div class="sidebar-module-header" style="cursor: pointer;" onclick="toggleSidebarModule(this)">
+                                <h4>📊 情绪检测</h4>
+                                <button class="action-icon-btn" onclick="event.stopPropagation(); fetchMarketSentiment()" title="手动刷新">↻</button>
+                            </div>
+                            <div id="sentimentMonitorList" class="sentiment-list-container">
+                                <div style="text-align:center; color:var(--text-muted); font-size:12px; padding: 20px 0;">加载中...</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 🎮 竞技区 -->
+            <div id="fishTabGame" class="fish-tab-pane" style="display: none;">
+                <div class="apple-dashboard-grid" style="max-width: 1200px; margin: 0 auto;">
+                    <div class="apple-dashboard-col" style="grid-column: 1 / -1;">
+                        
+                        <!-- 游戏选择区 -->
+                        <div class="apple-card" style="margin-bottom: 20px;">
+                            <h3>🎮 摸鱼竞技场</h3>
+                            <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 15px;">选择一款小游戏，挑战最高分，留下你的名字！</p>
+                            <div class="game-cards-container">
+                                <div class="game-card" onclick="startGame('clickFrenzy')">
+                                    <div class="game-icon">🖱️</div>
+                                    <div class="game-name">疯狂点击</div>
+                                    <div class="game-desc">10秒内疯狂点击目标</div>
+                                </div>
+                                <div class="game-card" onclick="startGame('reactionTime')">
+                                    <div class="game-icon">⚡</div>
+                                    <div class="game-name">极速反应</div>
+                                    <div class="game-desc">等待变绿，以最快速度点击</div>
+                                </div>
+                                <div class="game-card" onclick="startGame('mathMaster')">
+                                    <div class="game-icon">🧮</div>
+                                    <div class="game-name">速算大师</div>
+                                    <div class="game-desc">15秒内解答尽可能多的算术题</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 游戏主区域 -->
+                        <div id="gamePlayArea" class="apple-card" style="display: none; text-align: center; margin-bottom: 20px; min-height: 300px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3 id="currentGameTitle">游戏名称</h3>
+                                <button class="form-btn" onclick="exitGame()">退出游戏</button>
+                            </div>
+                            <div id="gameUI" style="margin-top: 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 200px;">
+                                <!-- 动态插入的游戏UI -->
+                            </div>
+                        </div>
+
+                        <!-- 排行榜区 -->
+                        <div class="apple-card" id="leaderboardArea">
+                            <h3>🏆 英雄榜 (Top 5)</h3>
+                            <div class="leaderboard-tabs" style="display: flex; gap: 10px; margin-top: 10px; margin-bottom: 15px;">
+                                <button class="form-btn lb-tab active" data-game="clickFrenzy" onclick="showLeaderboard('clickFrenzy', this)">疯狂点击</button>
+                                <button class="form-btn lb-tab" data-game="reactionTime" onclick="showLeaderboard('reactionTime', this)">极速反应</button>
+                                <button class="form-btn lb-tab" data-game="mathMaster" onclick="showLeaderboard('mathMaster', this)">速算大师</button>
+                            </div>
+                            <div id="leaderboardContainer" style="min-height: 150px;">
+                                <!-- 动态渲染排行榜 -->
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+            </div>
+
+            <!-- 🤖 AI 助手区 -->
+            <div id="fishTabAi" class="fish-tab-pane" style="display: none; height: calc(100vh - 120px);">
+                <div style="display: flex; height: 100%; gap: 20px;">
+                    <!-- 左侧模型列表 -->
+                    <div class="ai-sidebar">
+                        <div class="ai-menu-header">
+                            <h3 style="margin: 0; font-size: 16px;">平台切换</h3>
+                        </div>
+                        <ul class="ai-menu-list">
+                            <li class="ai-menu-item active" onclick="switchAIPanel('gemini', this)">
+                                🔹 Gemini
+                            </li>
+                            <li class="ai-menu-item" onclick="switchAIPanel('doubao', this)">
+                                🔸 豆包 (Doubao)
+                            </li>
+                            <li class="ai-menu-item" onclick="switchAIPanel('kimi', this)">
+                                🔺 Kimi
+                            </li>
+                            <li class="ai-menu-item" onclick="switchAIPanel('deepseek', this)">
+                                🐋 DeepSeek
+                            </li>
+                        </ul>
+                        <div style="margin-top: auto; padding: 15px; font-size: 12px; color: var(--text-muted); line-height: 1.5; border-top: 1px solid var(--border-color);">
+                            提示：如遇页面白屏或拒绝连接，请点击右侧上方的“独立窗口打开”。
+                        </div>
+                    </div>
+                    
+                    <!-- 右侧展示区 -->
+                    <div class="ai-main-view">
+                        <div class="ai-main-header">
+                            <div id="aiCurrentName" style="font-weight: bold; font-size: 16px;">Gemini</div>
+                            <button class="form-btn blue-btn" id="btnOpenAIExternal" onclick="openCurrentAIExternal()" style="padding: 6px 12px; font-size: 12px;">
+                                🚀 在独立窗口全屏打开
+                            </button>
+                        </div>
+                        <div class="ai-iframe-wrapper">
+                            <iframe id="aiFrame" src="https://gemini.google.com/" frameborder="0" sandbox="allow-scripts allow-same-origin allow-forms allow-popups"></iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <footer>
+        <p>无任何版权 · 仅个人使用</p>
+    </footer>
+</div>
+
+
+
+<!-- 🐟 文章编辑器弹窗 -->
+<div id="fishEditorModal" class="fish-editor-overlay" style="display: none;">
+    <div class="fish-editor-container">
+        <div class="fish-editor-header">
+            <h3>✏️ 文章编辑页</h3>
+            <div class="fish-editor-actions">
+                <button class="form-btn" onclick="saveFishPost()" style="background: var(--accent-color); color: #000;">保存发布</button>
+                <button class="form-btn red-btn" onclick="closeFishEditor()">取消</button>
+            </div>
+        </div>
+        <div class="fish-editor-body">
+            <input type="hidden" id="editorPostId">
+            <div class="editor-meta-row">
+                <input type="text" id="editorTitle" class="form-input editor-title-input" placeholder="输入文章标题...">
+                <input type="text" id="editorAuthor" class="form-input editor-meta-input" placeholder="作者署名">
+                <input type="date" id="editorDate" class="form-input editor-meta-input">
+            </div>
+            <div class="editor-meta-row" style="margin-top: 10px;">
+                <input type="text" id="editorCategory" class="form-input editor-meta-input" placeholder="分类 (如: 前端)">
+                <input type="text" id="editorTags" class="form-input editor-meta-input" placeholder="标签 (逗号分隔，如: js, css)" style="flex: 2;">
+            </div>
+            <div class="editor-toolbar" style="margin-top: 10px;">
+                <button type="button" class="toolbar-btn" onclick="insertEditorSyntax('**', '**')" title="加粗">B</button>
+                <button type="button" class="toolbar-btn" onclick="insertEditorSyntax('*', '*')" title="斜体">I</button>
+                <button type="button" class="toolbar-btn" onclick="insertEditorSyntax('`', '`')" title="代码">`code`</button>
+                <button type="button" class="toolbar-btn" onclick="insertEditorSyntax('\\n```javascript\\n', '\\n```\\n')" title="代码块">{ }</button>
+                <button type="button" class="toolbar-btn" onclick="insertEditorSyntax('==', '==')" title="高亮">==</button>
+                <button type="button" class="toolbar-btn" onclick="insertEditorSyntax('[链接文字](', ')')" title="链接">🔗</button>
+                <button type="button" class="toolbar-btn" onclick="insertEditorSyntax('![图片描述](', ')')" title="图片">🖼️</button>
+                <button type="button" class="toolbar-btn" onclick="insertEditorSyntax('> ', '')" title="引用">“ ”</button>
+            </div>
+            <div class="editor-content-area" style="margin-top: 5px;">
+                <textarea id="editorContent" class="form-textarea" placeholder="在此输入 Markdown 正文..."></textarea>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 🔍 找书指南弹窗 -->
+<div id="novelSearchModal" class="fish-modal-overlay" style="display: none;">
+    <div class="fish-modal-card">
+        <div class="fish-modal-header">
+            <h3>🔍 找书指南</h3>
+            <button class="fish-modal-close" onclick="closeNovelSearchModal()">✕</button>
+        </div>
+        <div class="fish-modal-body">
+            <p style="margin-bottom: 15px; font-size: 13px; color: var(--text-muted);">
+                在上方搜索栏输入书名，可直接搜索本地书架或跳转 Bing 搜索 .txt 下载。<br>
+                您也可以前往以下平台寻找 TXT 资源后导入。
+            </p>
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <a href="https://www.bing.com/search?q=TXT小说下载" target="_blank" class="form-btn blue-btn" style="text-align:center; text-decoration:none;">🔍 Bing 搜索 TXT小说</a>
+                <a href="https://www.google.com/search?q=TXT novel download" target="_blank" class="form-btn blue-btn" style="text-align:center; text-decoration:none;">🌍 Google 搜索 TXT小说</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="app.js"></script>
+<script src="fish.js"></script>
+<script src="audiobook.js"></script>
+</body>
+</html>
