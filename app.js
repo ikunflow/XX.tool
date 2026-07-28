@@ -603,10 +603,6 @@ function renderPageLockState() {
     }
 }
 
-function forceSyncToCloud() {
-    if (!isFirebaseConfigured()) { alert('⚠️ Firebase 未配置'); return; }
-    saveToCloudAndReload();
-}
 function forceSyncFromCloud() {
     if (!isFirebaseConfigured()) { alert('⚠️ Firebase 未配置'); return; }
     syncFromCloud();
@@ -995,6 +991,8 @@ function generateJigsawCuts(groupObj, onComplete) {
     const heightInput = document.getElementById('jigsawOutputHeight');
     const targetOutWidth = parseInt(widthInput ? widthInput.value : '300') || 300;
     const targetOutHeight = parseInt(heightInput ? heightInput.value : '400') || 400;
+    groupObj.targetOutWidth = targetOutWidth;
+    groupObj.targetOutHeight = targetOutHeight;
     let srcX = 0, srcY = 0, srcWidth = img.width, srcHeight = img.height;
     let targetRatio = 3 / 4;
     if (mode === '2x2') targetRatio = 3 / 4;
@@ -1144,6 +1142,100 @@ function downloadAllJigsawGroupsZip() {
         const folder = zip.folder(group.prefix); group.tasks.forEach(task => { if(task) folder.file(task.fileName, task.blob); });
     });
     zip.generateAsync({ type: "blob" }).then(c => { saveAs(c, "切图合集.zip"); });
+}
+
+function createJigsawFullImageBlob(group) {
+    return new Promise((resolve) => {
+        if (!group.tasks || group.tasks.length === 0) { resolve(null); return; }
+        const mode = group.mode || '2x2';
+        const pw = group.targetOutWidth || 300;
+        const ph = group.targetOutHeight || 400;
+        let cols, rows;
+        if (mode === '2x2') { cols = 2; rows = 2; }
+        else if (mode === '2x1') { cols = 2; rows = 1; }
+        else { cols = 1; rows = 2; }
+        
+        // 读取整图输出分辨率设置
+        const fullWidthInput = document.getElementById('jigsawFullOutputWidth');
+        const fullHeightInput = document.getElementById('jigsawFullOutputHeight');
+        const fullWidth = parseInt(fullWidthInput?.value) || 0;
+        const fullHeight = parseInt(fullHeightInput?.value) || 0;
+        
+        const canvas = document.createElement('canvas');
+        let drawW, drawH;
+        if (fullWidth > 0 && fullHeight > 0) {
+            canvas.width = fullWidth;
+            canvas.height = fullHeight;
+            drawW = fullWidth / cols;
+            drawH = fullHeight / rows;
+        } else {
+            canvas.width = pw * cols;
+            canvas.height = ph * rows;
+            drawW = pw;
+            drawH = ph;
+        }
+        const ctx = canvas.getContext('2d');
+        let loaded = 0;
+        const total = group.tasks.length;
+        group.tasks.forEach(task => {
+            const img = new Image();
+            img.onload = () => {
+                const id = parseInt(task.id) - 1;
+                const col = mode === '1x2' ? 0 : id % cols;
+                const row = mode === '2x1' ? 0 : Math.floor(id / cols);
+                ctx.drawImage(img, col * drawW, row * drawH, drawW, drawH);
+                loaded++;
+                if (loaded === total) {
+                    finalizeFullImageBlob(canvas, resolve);
+                }
+            };
+            img.onerror = () => {
+                loaded++;
+                if (loaded === total) finalizeFullImageBlob(canvas, resolve);
+            };
+            img.src = task.url;
+        });
+        
+        function finalizeFullImageBlob(c, resolveFn) {
+            const fullSizeInput = document.getElementById('jigsawFullMaxSizeInput');
+            const fullMaxBytes = ((fullSizeInput ? parseFloat(fullSizeInput.value) : 0) || 0) * 1024;
+            if (fullMaxBytes > 0) {
+                compressFullImageToSize(c, 0.95, fullMaxBytes, resolveFn);
+            } else {
+                c.toBlob((blob) => resolveFn(blob), 'image/jpeg', 0.95);
+            }
+        }
+    });
+}
+
+function compressFullImageToSize(canvas, quality, maxByteSize, callback) {
+    canvas.toBlob((blob) => {
+        if (blob.size <= maxByteSize || quality <= 0.1) {
+            if (blob.size > maxByteSize) {
+                const nextCanvas = document.createElement('canvas');
+                nextCanvas.width = canvas.width * 0.85;
+                nextCanvas.height = canvas.height * 0.85;
+                const ctx = nextCanvas.getContext('2d');
+                ctx.drawImage(canvas, 0, 0, nextCanvas.width, nextCanvas.height);
+                compressFullImageToSize(nextCanvas, 0.9, maxByteSize, callback);
+            } else { callback(blob); }
+        } else { compressFullImageToSize(canvas, quality - 0.06, maxByteSize, callback); }
+    }, 'image/jpeg', quality);
+}
+
+function downloadAllJigsawFullImages() {
+    if (allJigsawGroupsData.length === 0) return;
+    const zip = new JSZip();
+    const promises = allJigsawGroupsData.map(group =>
+        createJigsawFullImageBlob(group).then(blob => {
+            if (blob) zip.file(`${group.prefix}_整图.jpg`, blob);
+        })
+    );
+    Promise.all(promises).then(() => {
+        zip.generateAsync({ type: 'blob' }).then(c => {
+            saveAs(c, '全部整图合集.zip');
+        });
+    });
 }
 
 function deleteJigsawGroup(id) {

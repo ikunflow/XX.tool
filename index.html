@@ -113,7 +113,6 @@
             </div>
         </div>
         <div class="sync-toolbar-right">
-            <button onclick="forceSyncToCloud()" class="form-btn orange-btn sync-btn">⬆️ 上传到云端</button>
             <button onclick="forceSyncFromCloud()" class="form-btn blue-btn sync-btn">⬇️ 从云端拉取</button>
         </div>
     </div>
@@ -152,10 +151,21 @@
                     <input type="number" id="jigsawMaxSizeInput" value="18" oninput="autoRefreshAllJigsaw()"><span>KB</span>
                 </div>
                 <div class="jigsaw-setting-item">
+                    <span>整图体积上限：</span>
+                    <input type="number" id="jigsawFullMaxSizeInput" value="" placeholder="不限制"><span>KB</span>
+                </div>
+                <div class="jigsaw-setting-item">
                     <span>输出单图分辨率：</span>
                     <input type="number" id="jigsawOutputWidth" class="jigsaw-resolution-input" value="300" min="10" max="10000" placeholder="宽" oninput="autoRefreshAllJigsaw()">
                     <span>×</span>
                     <input type="number" id="jigsawOutputHeight" class="jigsaw-resolution-input" value="400" min="10" max="10000" placeholder="高" oninput="autoRefreshAllJigsaw()">
+                    <span>像素</span>
+                </div>
+                <div class="jigsaw-setting-item">
+                    <span>整图输出分辨率：</span>
+                    <input type="number" id="jigsawFullOutputWidth" class="jigsaw-resolution-input" value="600" min="10" max="20000" placeholder="宽">
+                    <span>×</span>
+                    <input type="number" id="jigsawFullOutputHeight" class="jigsaw-resolution-input" value="800" min="10" max="20000" placeholder="高">
                     <span>像素</span>
                 </div>
                 <div class="jigsaw-setting-item">
@@ -250,6 +260,7 @@
         <div id="jigsawStatus"></div>
         <div class="jigsaw-action-bar" id="jigsawActionBar">
             <button class="form-btn orange-btn" onclick="downloadAllJigsawGroupsZip()">📦 打包全部 ZIP</button>
+            <button class="form-btn orange-btn" onclick="downloadAllJigsawFullImages()">下载全部整图</button>
             <button class="form-btn red-btn" onclick="clearAllJigsawHistory()">🗑️ 清空历史</button>
         </div>
         <div id="jigsawOutputGroupsContainer"></div>
