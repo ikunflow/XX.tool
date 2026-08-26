@@ -46,10 +46,8 @@
     <header>
         <div class="header-left">
             <div class="editable-title-wrap" onclick="editBoardTitle()" title="点击自定义修改名称">
-                <h1 id="boardTitleDisplay">🛠️ 试玩工具箱</h1>
                 <span class="edit-icon">✏️</span>
             </div>
-            <p>标签版 · 多标签页 · Firebase RTDB 实时同步</p>
         </div>
         <div class="header-right">
             <!-- 🔥 Firebase 同步状态（紧凑药丸，始终在 header 右侧） -->
@@ -203,10 +201,95 @@
                             <span>1×2 竖切</span>
                             <span class="check-mark">✓</span>
                         </label>
+                        <label class="jigsaw-mode-card" data-value="custom" onclick="selectJigsawMode(this, 'jigsawGlobalCutMode')">
+                            <span>自定义</span>
+                            <span class="check-mark">✓</span>
+                        </label>
                         <input type="radio" name="jigsawGlobalCutMode" value="2x2" checked style="display:none;">
                         <input type="radio" name="jigsawGlobalCutMode" value="2x1" style="display:none;">
                         <input type="radio" name="jigsawGlobalCutMode" value="1x2" style="display:none;">
+                        <input type="radio" name="jigsawGlobalCutMode" value="custom" style="display:none;">
+                        <span id="jigsawGlobalCustomCutInputs" class="jigsaw-cut-inputs" style="display:none;">
+                            <input type="number" id="jigsawGlobalCutCols" class="jigsaw-cut-input" min="1" max="20" value="" placeholder="列" oninput="autoRefreshAllJigsaw()" title="列：横向切割数">
+                            <span class="jigsaw-cut-label">列</span>
+                            <span>×</span>
+                            <input type="number" id="jigsawGlobalCutRows" class="jigsaw-cut-input" min="1" max="20" value="" placeholder="行" oninput="autoRefreshAllJigsaw()" title="行：竖向切割数">
+                            <span class="jigsaw-cut-label">行</span>
+                        </span>
                     </div>
+                </div>
+            </div>
+            <div class="jigsaw-settings-row" style="border-top: 1px solid var(--border-color); padding-top: 12px; margin-top: 4px;">
+                <div class="jigsaw-setting-item jigsaw-comment-toggle-row" onclick="toggleJigsawComments()" style="cursor: pointer;">
+                    <span style="display: flex; align-items: center; gap: 6px;">💬 留言板</span>
+                    <span class="jigsaw-comment-toggle-icon" id="jigsawCommentToggleIcon" style="font-size: 11px; color: var(--text-muted);">▼</span>
+                </div>
+            </div>
+            <div class="jigsaw-comment-body" id="jigsawCommentBody" style="display: none; padding: 12px 0;">
+                <div class="jigsaw-comment-list" id="jigsawCommentList"></div>
+                <button class="form-btn blue-btn" onclick="openNewJigsawCommentDialog()" style="margin-top: 12px; padding: 8px 16px; font-size: 13px;">+ 新增留言</button>
+            </div>
+        </div>
+        <!-- 单图选区切割弹窗 -->
+        <div id="singleCropPage" class="crop-modal" style="display:none;">
+            <div class="single-crop-panel">
+                <div class="single-crop-page-header">
+                    <div class="jigsaw-page-title">🎯 组选区</div>
+                    <button class="form-btn blue-btn" onclick="showJigsawPage()">取消</button>
+                </div>
+                <div class="single-crop-toolbar">
+                    <span class="single-crop-grid-control">📐 切割网格 
+                        <select id="singleCropGroupGrid" onchange="updateSingleCropGroupGridUI()">
+                            <option value="2x2">2×2 四宫格</option>
+                            <option value="2x1">2×1 横切</option>
+                            <option value="1x2">1×2 竖切</option>
+                            <option value="4x4">4×4</option>
+                            <option value="4x5">4×5</option>
+                            <option value="6x6">6×6</option>
+                            <option value="8x8">8×8</option>
+                            <option value="custom">自定义</option>
+                        </select>
+                    </span>
+                    <span id="singleCropGroupGridCustom" class="jigsaw-cut-inputs" style="display:none">
+                        <input type="number" id="singleCropGroupCols" min="1" max="20" value="2" oninput="autoAdjustCropRatio()" title="列：横向切割数">
+                        <span class="jigsaw-cut-label">列</span>
+                        <span>|</span>
+                        <input type="number" id="singleCropGroupRows" min="1" max="20" value="2" oninput="autoAdjustCropRatio()" title="行：竖向切割数">
+                        <span class="jigsaw-cut-label">行</span>
+                    </span>
+                    <label>X <input type="number" id="singleCropX" min="0"></label>
+                    <label>Y <input type="number" id="singleCropY" min="0"></label>
+                    <label>宽 <input type="number" id="singleCropWidth" min="1"></label>
+                    <label>高 <input type="number" id="singleCropHeight" min="1"></label>
+                    <span class="single-crop-ratio-quiet">
+                        <label><input type="checkbox" id="singleCropFixedRatio" checked> 固定比例</label>
+                        <span>每块 
+                            <select id="singleCropRatioPreset" style="display:none">
+                                <option value="0.75">3:4</option>
+                                <option value="custom">自定义</option>
+                            </select>
+                            <b id="singleCropAutoRatioLabel">3:4</b>
+                        </span>
+                        <span id="singleCropCustomRatioInputs" class="single-crop-ratio-custom" style="display:none">
+                            <input type="number" id="singleCropRatioX" min="1" value="3">
+                            <b>:</b>
+                            <input type="number" id="singleCropRatioY" min="1" value="4">
+                        </span>
+                    </span>
+                    <input type="hidden" id="singleCropRatio" value="0.75">
+                </div>
+                <div class="single-crop-stage" id="singleCropStage">
+                    <img id="singleCropImage" alt="待选区原图">
+                    <div class="single-crop-selection" id="singleCropSelection">
+                        <span class="single-crop-handle tl"></span>
+                        <span class="single-crop-handle tr"></span>
+                        <span class="single-crop-handle bl"></span>
+                        <span class="single-crop-handle br"></span>
+                    </div>
+                </div>
+                <div class="single-crop-hint">💡 拖动选区移动位置，拖动四角调整大小。白色虚线为当前切割网格预览。坐标和尺寸均为原图像素。</div>
+                <div class="single-crop-actions">
+                    <button class="form-btn green-btn" id="singleCropConfirmBtn">✅ 确定选区并重新切割</button>
                 </div>
             </div>
         </div>

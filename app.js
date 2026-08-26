@@ -805,11 +805,273 @@ function escapeHtml(str) {
 }
 
 // ============================================================
-// 🧩 切图引擎（精简版）
+// 🧩 切图引擎
 // ============================================================
 let allJigsawGroupsData = [], totalJigsawImageCount = 0, jigsawGroupCounterId = 0;
 const jigsawFileInput = document.getElementById('jigsawFileInput');
 const jigsawDropZone = document.getElementById('jigsawDropZone');
+
+// 命名规则：组文件夹 = image_{组序号}，组内图片 = {组序号}-{块序号}.jpeg（如 0-1、0-2、0-3、0-4）
+// 这是下载文件名/文件夹名的唯一来源，任何结构变动后由 refreshAllJigsawGroupsUI / 下载函数调用重算
+function recomputeJigsawFileNames() {
+    allJigsawGroupsData.forEach((group, groupIndex) => {
+        group.groupIndex = groupIndex;
+        group.folderName = `image_${groupIndex}`;
+        group.tasks.forEach(task => {
+            if (task) {
+                task.fileName = `${groupIndex}-${task.id}.jpeg`;
+            }
+        });
+    });
+}
+
+// ============================================================
+// 单图选区切割：显示坐标选区，确认后复用现有切割引擎
+// ============================================================
+let singleCropState = { img: null, url: '', x: 0, y: 0, width: 1, height: 1, dragging: null };
+let singleCropEditingGroupId = null;
+function showSingleCropPage() { document.getElementById('singleCropPage').style.display = 'block'; }
+function showJigsawPage() { document.getElementById('singleCropPage').style.display = 'none'; }
+
+const singleCropFixedRatio = document.getElementById('singleCropFixedRatio');
+const singleCropRatio = document.getElementById('singleCropRatio');
+const singleCropImage = document.getElementById('singleCropImage');
+const singleCropStage = document.getElementById('singleCropStage');
+const singleCropSelection = document.getElementById('singleCropSelection');
+const singleCropFields = ['singleCropX', 'singleCropY', 'singleCropWidth', 'singleCropHeight'].map(id => document.getElementById(id));
+
+function clampSingleCrop() {
+    const img = singleCropState.img;
+    if (!img) return;
+    singleCropState.width = Math.max(1, Math.min(img.width, Number(singleCropFields[2].value) || 1));
+    singleCropState.height = Math.max(1, Math.min(img.height, Number(singleCropFields[3].value) || 1));
+    singleCropState.x = Math.max(0, Math.min(img.width - singleCropState.width, Number(singleCropFields[0].value) || 0));
+    singleCropState.y = Math.max(0, Math.min(img.height - singleCropState.height, Number(singleCropFields[1].value) || 0));
+    [singleCropState.x, singleCropState.y, singleCropState.width, singleCropState.height].forEach((value, index) => { singleCropFields[index].value = Math.round(value); });
+    updateSingleCropView();
+}
+
+function updateSingleCropView() {
+    if (!singleCropState.img || !singleCropImage.clientWidth) return;
+    const scaleX = singleCropImage.clientWidth / singleCropState.img.width;
+    const scaleY = singleCropImage.clientHeight / singleCropState.img.height;
+    singleCropSelection.style.display = 'block';
+    singleCropSelection.style.left = `${singleCropState.x * scaleX}px`;
+    singleCropSelection.style.top = `${singleCropState.y * scaleY}px`;
+    singleCropSelection.style.width = `${singleCropState.width * scaleX}px`;
+    singleCropSelection.style.height = `${singleCropState.height * scaleY}px`;
+    
+    // 清除并重新绘制网格虚线
+    singleCropSelection.querySelectorAll('.single-crop-grid-line').forEach(line => line.remove());
+    const grid = getSingleCropGrid();
+    for (let col = 1; col < grid.cols; col++) {
+        const line = document.createElement('span');
+        line.className = 'single-crop-grid-line vertical';
+        line.style.left = `${col * 100 / grid.cols}%`;
+        singleCropSelection.insertBefore(line, singleCropSelection.firstChild);
+    }
+    for (let row = 1; row < grid.rows; row++) {
+        const line = document.createElement('span');
+        line.className = 'single-crop-grid-line horizontal';
+        line.style.top = `${row * 100 / grid.rows}%`;
+        singleCropSelection.insertBefore(line, singleCropSelection.firstChild);
+    }
+}
+
+function syncSingleCropFields() {
+    if (singleCropFixedRatio.checked) {
+        const ratio = Number(singleCropRatio.value) || 0.75;
+        const width = Number(singleCropFields[2].value) || singleCropState.width;
+        singleCropFields[3].value = Math.max(1, Math.round(width / ratio));
+    }
+    singleCropFields.forEach((field, index) => { singleCropState[['x', 'y', 'width', 'height'][index]] = Number(field.value) || 0; }); clampSingleCrop();
+}
+
+const singleCropRatioPreset = document.getElementById('singleCropRatioPreset');
+const singleCropCustomRatioInputs = document.getElementById('singleCropCustomRatioInputs');
+function updateSingleCropRatio() {
+    if (singleCropRatioPreset.value === 'custom') {
+        singleCropCustomRatioInputs.style.display = 'inline-flex';
+        singleCropRatio.value = (Number(document.getElementById('singleCropRatioX').value) || 1) / (Number(document.getElementById('singleCropRatioY').value) || 1);
+    } else {
+        singleCropCustomRatioInputs.style.display = 'none';
+        singleCropRatio.value = singleCropRatioPreset.value;
+    }
+    if (singleCropFixedRatio.checked) syncSingleCropFields();
+}
+
+if (singleCropRatioPreset) singleCropRatioPreset.addEventListener('change', updateSingleCropRatio);
+const ratioXInput = document.getElementById('singleCropRatioX');
+const ratioYInput = document.getElementById('singleCropRatioY');
+if (ratioXInput) ratioXInput.addEventListener('input', updateSingleCropRatio);
+if (ratioYInput) ratioYInput.addEventListener('input', updateSingleCropRatio);
+if (singleCropFixedRatio) singleCropFixedRatio.addEventListener('change', () => { if (singleCropFixedRatio.checked) { updateSingleCropRatio(); syncSingleCropFields(); } });
+singleCropFields.forEach(field => {
+    if (field) {
+        field.addEventListener('change', syncSingleCropFields);
+        field.addEventListener('input', () => { clearTimeout(window._singleCropInputTimer); window._singleCropInputTimer = setTimeout(syncSingleCropFields, 300); });
+    }
+});
+window.addEventListener('resize', updateSingleCropView);
+
+if (singleCropSelection) {
+    singleCropSelection.addEventListener('pointerdown', event => {
+        if (!singleCropState.img) return;
+        event.preventDefault(); singleCropSelection.setPointerCapture(event.pointerId);
+        singleCropState.dragging = { handle: event.target.className.match(/\b(tl|tr|bl|br)\b/)?.[1] || null, startX: event.clientX, startY: event.clientY, x: singleCropState.x, y: singleCropState.y, width: singleCropState.width, height: singleCropState.height };
+    });
+    singleCropSelection.addEventListener('pointermove', event => {
+        const drag = singleCropState.dragging, img = singleCropState.img;
+        if (!drag || !img) return;
+        const scaleX = singleCropImage.clientWidth / img.width, scaleY = singleCropImage.clientHeight / img.height;
+        const dx = (event.clientX - drag.startX) / scaleX, dy = (event.clientY - drag.startY) / scaleY;
+        if (drag.handle) {
+            const fixedRatio = singleCropFixedRatio.checked;
+            const ratio = Number(singleCropRatio.value) || (drag.width / drag.height);
+            let left, top, width, height;
+            if (fixedRatio) {
+                const anchorX = drag.handle.includes('r') ? drag.x : drag.x + drag.width;
+                const anchorY = drag.handle.includes('b') ? drag.y : drag.y + drag.height;
+                let rawW = drag.handle.includes('r') ? Math.max(1, drag.width + dx) : Math.max(1, drag.width - dx);
+                let rawH = drag.handle.includes('b') ? Math.max(1, drag.height + dy) : Math.max(1, drag.height - dy);
+                if (Math.abs(rawW - drag.width) >= Math.abs(rawH - drag.height)) { width = rawW; height = width / ratio; }
+                else { height = rawH; width = height * ratio; }
+                const maxW = drag.handle.includes('r') ? Math.max(1, img.width - anchorX) : Math.max(1, anchorX);
+                const maxH = drag.handle.includes('b') ? Math.max(1, img.height - anchorY) : Math.max(1, anchorY);
+                if (width > maxW) { width = maxW; height = width / ratio; }
+                if (height > maxH) { height = maxH; width = height * ratio; }
+                if (drag.handle.includes('r')) { left = anchorX; } else { left = anchorX - width; }
+                if (drag.handle.includes('b')) { top = anchorY; } else { top = anchorY - height; }
+            } else {
+                left = drag.x; top = drag.y;
+                let right = drag.x + drag.width, bottom = drag.y + drag.height;
+                if (drag.handle.includes('l')) left = Math.max(0, Math.min(right - 1, drag.x + dx));
+                if (drag.handle.includes('r')) right = Math.min(img.width, Math.max(left + 1, drag.x + drag.width + dx));
+                if (drag.handle.includes('t')) top = Math.max(0, Math.min(bottom - 1, drag.y + dy));
+                if (drag.handle.includes('b')) bottom = Math.min(img.height, Math.max(top + 1, drag.y + drag.height + dy));
+                width = right - left; height = bottom - top;
+            }
+            singleCropState.x = left; singleCropState.y = top; singleCropState.width = width; singleCropState.height = height;
+        } else { singleCropState.x = Math.max(0, Math.min(img.width - drag.width, drag.x + dx)); singleCropState.y = Math.max(0, Math.min(img.height - drag.height, drag.y + dy)); }
+        singleCropFields[0].value = Math.round(singleCropState.x); singleCropFields[1].value = Math.round(singleCropState.y); singleCropFields[2].value = Math.round(singleCropState.width); singleCropFields[3].value = Math.round(singleCropState.height); updateSingleCropView();
+    });
+    singleCropSelection.addEventListener('pointerup', () => { singleCropState.dragging = null; });
+}
+
+function autoAdjustCropRatio() {
+    const grid = getSingleCropGrid();
+    const ratio = 0.75 * grid.cols / grid.rows;
+    singleCropRatio.value = ratio;
+    
+    const label = document.getElementById('singleCropAutoRatioLabel');
+    if (label) label.textContent = `${grid.cols * 3}:${grid.rows * 4}`;
+    
+    if (singleCropState.img && singleCropFixedRatio.checked) {
+        const img = singleCropState.img;
+        const cx = singleCropState.x + singleCropState.width / 2;
+        const cy = singleCropState.y + singleCropState.height / 2;
+        let newW, newH;
+        const wByH = Math.round(img.height * ratio);
+        if (wByH <= img.width) { 
+            newH = img.height; 
+            newW = wByH; 
+        } else { 
+            newW = img.width; 
+            newH = Math.round(newW / ratio); 
+        }
+        singleCropState.width = newW;
+        singleCropState.height = newH;
+        singleCropState.x = Math.max(0, Math.min(img.width - newW, Math.round(cx - newW / 2)));
+        singleCropState.y = Math.max(0, Math.min(img.height - newH, Math.round(cy - newH / 2)));
+        singleCropFields.forEach((field, index) => field.value = Math.round(singleCropState[['x', 'y', 'width', 'height'][index]]));
+    }
+    updateSingleCropView();
+}
+
+function updateSingleCropGroupGridUI() {
+    const mode = document.getElementById('singleCropGroupGrid').value;
+    document.getElementById('singleCropGroupGridCustom').style.display = mode === 'custom' ? 'inline-flex' : 'none';
+    autoAdjustCropRatio();
+}
+
+function openGroupCropEditor(id) {
+    const group = allJigsawGroupsData.find(item => item.id === id);
+    if (!group) return;
+    singleCropEditingGroupId = id;
+    const groupGrid = getJigsawGroupGrid(group);
+    
+    // 设置裁剪弹窗中的网格选项和自定义行列数
+    const groupGridMode = ['2x2', '2x1', '1x2', '4x4', '4x5', '6x6', '8x8'].includes(group.mode) ? group.mode : (group.mode === 'custom' ? 'custom' : 'custom');
+    document.getElementById('singleCropGroupGrid').value = groupGridMode;
+    document.getElementById('singleCropGroupCols').value = groupGrid.cols;
+    document.getElementById('singleCropGroupRows').value = groupGrid.rows;
+    document.getElementById('singleCropGroupGridCustom').style.display = groupGridMode === 'custom' ? 'inline-flex' : 'none';
+
+    const ratio = 0.75 * groupGrid.cols / groupGrid.rows;
+    singleCropRatio.value = ratio;
+    
+    const autoLabel = document.getElementById('singleCropAutoRatioLabel');
+    if (autoLabel) autoLabel.textContent = `${groupGrid.cols * 3}:${groupGrid.rows * 4}`;
+    
+    let initW, initH, initX, initY;
+    if (group.crop) {
+        initW = group.crop.width;
+        initH = group.crop.height;
+        initX = group.crop.x;
+        initY = group.crop.y;
+    } else {
+        const wByH = Math.round(group.img.height * ratio);
+        if (wByH <= group.img.width) {
+            initH = group.img.height; initW = wByH;
+        } else {
+            initW = group.img.width; initH = Math.round(initW / ratio);
+        }
+        initX = Math.round((group.img.width - initW) / 2);
+        initY = Math.round((group.img.height - initH) / 2);
+    }
+    
+    singleCropState = { img: group.img, url: group.img.src, x: initX, y: initY, width: initW, height: initH, dragging: null };
+    singleCropFixedRatio.checked = true;
+    singleCropImage.src = group.img.src;
+    singleCropStage.style.display = 'inline-block';
+    singleCropSelection.style.display = 'block';
+    singleCropFields.forEach((field, index) => field.value = Math.round(singleCropState[['x', 'y', 'width', 'height'][index]]));
+    
+    const confirmBtn = document.getElementById('singleCropConfirmBtn');
+    if (confirmBtn) confirmBtn.disabled = false;
+    
+    showSingleCropPage();
+    requestAnimationFrame(updateSingleCropView);
+}
+
+const singleCropConfirmBtn = document.getElementById('singleCropConfirmBtn');
+if (singleCropConfirmBtn) {
+    singleCropConfirmBtn.addEventListener('click', () => {
+        if (!singleCropState.img || singleCropEditingGroupId === null) return;
+
+        syncSingleCropFields();
+        const group = allJigsawGroupsData.find(item => item.id === singleCropEditingGroupId);
+        if (!group) return;
+
+        group.crop = {
+            x: Math.round(singleCropState.x),
+            y: Math.round(singleCropState.y),
+            width: Math.round(singleCropState.width),
+            height: Math.round(singleCropState.height)
+        };
+
+        const gridMode = document.getElementById('singleCropGroupGrid').value;
+        group.mode = gridMode;
+        if (gridMode === 'custom') {
+            group.cutCols = parseInt(document.getElementById('singleCropGroupCols').value) || 2;
+            group.cutRows = parseInt(document.getElementById('singleCropGroupRows').value) || 2;
+        }
+
+        singleCropEditingGroupId = null;
+        showJigsawPage();
+        generateJigsawCuts(group, () => refreshAllJigsawGroupsUI());
+    });
+}
 
 function selectJigsawMode(card, groupName) {
     const value = card.getAttribute('data-value');
@@ -825,24 +1087,33 @@ function selectJigsawMode(card, groupName) {
         radio.dispatchEvent(new Event('change'));
     }
     if (groupName === 'jigsawPrefixType') { handleJigsawPrefixChange(); }
-    if (groupName === 'jigsawGlobalCutMode') { autoRefreshAllJigsaw(); }
+    if (groupName === 'jigsawGlobalCutMode') {
+        const customInputs = document.getElementById('jigsawGlobalCustomCutInputs');
+        if (customInputs) customInputs.style.display = value === 'custom' ? 'inline-flex' : 'none';
+        if (value === 'custom') {
+            const templateToggle = document.getElementById('jigsawTemplateToggle');
+            if (templateToggle) {
+                templateToggle.checked = false;
+                templateToggle.dispatchEvent(new Event('change'));
+            }
+        }
+        autoRefreshAllJigsaw();
+    }
 }
 
-// file input change is handled by inline onchange in HTML to avoid duplicate firing
-// jigsawFileInput.addEventListener('change', ...) removed to prevent double-trigger
 if (jigsawDropZone) {
     jigsawDropZone.addEventListener('dragover', (e) => {
         e.preventDefault();
-        jigsawDropZone.style.background = 'rgba(0, 250, 154, 0.08)';
+        jigsawDropZone.style.background = 'rgba(0, 113, 227, 0.08)';
         jigsawDropZone.style.borderColor = 'var(--accent-color)';
     });
     jigsawDropZone.addEventListener('dragleave', () => {
-        jigsawDropZone.style.background = 'rgba(0, 250, 154, 0.01)';
+        jigsawDropZone.style.background = 'rgba(0, 113, 227, 0.02)';
         jigsawDropZone.style.borderColor = 'var(--accent-color)';
     });
     jigsawDropZone.addEventListener('drop', (e) => {
         e.preventDefault();
-        jigsawDropZone.style.background = 'rgba(0, 250, 154, 0.01)';
+        jigsawDropZone.style.background = 'rgba(0, 113, 227, 0.02)';
         jigsawDropZone.style.borderColor = 'var(--accent-color)';
         if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
             handleJigsawFiles(e.dataTransfer.files);
@@ -869,7 +1140,7 @@ function autoRefreshAllJigsaw() {
 function handleJigsawPrefixChange() {
     if (allJigsawGroupsData.length === 0) return;
     allJigsawGroupsData.forEach((group, index) => {
-        if (!group.isCustom) { group.prefix = getJigsawPrefix(index); group.tasks.forEach(t => { t.fileName = `${group.prefix}-${t.id}.jpeg`; }); }
+        if (!group.isCustom) { group.prefix = getJigsawPrefix(index); }
     });
     refreshAllJigsawGroupsUI();
 }
@@ -897,6 +1168,28 @@ function getJigsawTemplateMode(globalIndex) {
     return '2x2';
 }
 
+function getJigsawCustomGrid() {
+    const cols = Math.max(1, Math.min(20, parseInt(document.getElementById('jigsawGlobalCutCols')?.value) || 2));
+    const rows = Math.max(1, Math.min(20, parseInt(document.getElementById('jigsawGlobalCutRows')?.value) || 2));
+    return { cols, rows };
+}
+
+function getJigsawGroupGrid(groupObj) {
+    if (groupObj.mode === 'custom') return { cols: groupObj.cutCols || 2, rows: groupObj.cutRows || 2 };
+    const preset = { '2x2': [2, 2], '2x1': [2, 1], '1x2': [1, 2], '4x4': [4, 4], '4x5': [4, 5], '6x6': [6, 6], '8x8': [8, 8] }[groupObj.mode];
+    if (preset) return { cols: preset[0], rows: preset[1] };
+    return { cols: 2, rows: 2 };
+}
+
+function getSingleCropGrid() {
+    const gridMode = document.getElementById('singleCropGroupGrid')?.value || '2x2';
+    if (gridMode === 'custom') {
+        return { cols: Math.max(1, parseInt(document.getElementById('singleCropGroupCols')?.value) || 2), rows: Math.max(1, parseInt(document.getElementById('singleCropGroupRows')?.value) || 2) };
+    }
+    const preset = { '2x2': [2, 2], '2x1': [2, 1], '1x2': [1, 2], '4x4': [4, 4], '4x5': [4, 5], '6x6': [6, 6], '8x8': [8, 8] }[gridMode] || [2, 2];
+    return { cols: preset[0], rows: preset[1] };
+}
+
 async function refreshAllJigsawWithCurrentSettings() {
     if (allJigsawGroupsData.length === 0) {
         const statusDiv = document.getElementById('jigsawStatus');
@@ -911,18 +1204,18 @@ async function refreshAllJigsawWithCurrentSettings() {
         const group = allJigsawGroupsData[i];
         if (statusDiv) statusDiv.textContent = `🔄 正在刷新第 ${i + 1}/${allJigsawGroupsData.length} 组 [${group.prefix}]...`;
         if (!group.isCustom) { group.prefix = getJigsawPrefix(i); }
-        // 模板勾选时：非自定义mode的组按模板规则重新分配切法
         if (templateEnabled && !group.modeIsCustom) {
             group.mode = getJigsawTemplateMode(i);
         } else if (!group.modeIsCustom) {
             group.mode = defaultMode;
+            if (defaultMode === 'custom') {
+                const grid = getJigsawCustomGrid();
+                group.cutCols = grid.cols;
+                group.cutRows = grid.rows;
+            }
         }
-        // modeIsCustom的组保留用户手动选的切割方式
         await new Promise(resolve => {
-            generateJigsawCuts(group, () => {
-                group.tasks.forEach(t => { t.fileName = `${group.prefix}-${t.id}.jpeg`; });
-                resolve();
-            });
+            generateJigsawCuts(group, () => { resolve(); });
         });
     }
     refreshAllJigsawGroupsUI();
@@ -985,6 +1278,8 @@ function generateJigsawCuts(groupObj, onComplete) {
     groupObj._cutToken = (groupObj._cutToken || 0) + 1;
     const myToken = groupObj._cutToken;
     const img = groupObj.img, mode = groupObj.mode;
+    const grid = getJigsawGroupGrid(groupObj);
+    const cols = grid.cols, rows = grid.rows;
     const sizeInput = document.getElementById('jigsawMaxSizeInput');
     const maxByteSize = ((sizeInput ? parseFloat(sizeInput.value) : 18) || 18) * 1024;
     const widthInput = document.getElementById('jigsawOutputWidth');
@@ -994,28 +1289,26 @@ function generateJigsawCuts(groupObj, onComplete) {
     groupObj.targetOutWidth = targetOutWidth;
     groupObj.targetOutHeight = targetOutHeight;
     let srcX = 0, srcY = 0, srcWidth = img.width, srcHeight = img.height;
-    let targetRatio = 3 / 4;
-    if (mode === '2x2') targetRatio = 3 / 4;
-    else if (mode === '2x1') targetRatio = 6 / 4;
-    else if (mode === '1x2') targetRatio = 3 / 8;
-    const currentRatio = img.width / img.height;
-    if (currentRatio > targetRatio) { srcWidth = img.height * targetRatio; srcX = (img.width - srcWidth) / 2; }
-    else { srcHeight = img.width / targetRatio; srcY = (img.height - srcHeight) / 2; }
-    let positions = [];
-    if (mode === '2x2') {
-        const subW = srcWidth / 2, subH = srcHeight / 2;
-        groupObj.gridClass = 'jigsaw-grid-4';
-        positions = [{ id: '1', x: srcX, y: srcY }, { id: '2', x: srcX + subW, y: srcY }, { id: '3', x: srcX, y: srcY + subH }, { id: '4', x: srcX + subW, y: srcY + subH }];
-    } else if (mode === '2x1') {
-        const subW = srcWidth / 2; groupObj.gridClass = 'jigsaw-grid-2';
-        positions = [{ id: '1', x: srcX, y: srcY }, { id: '2', x: srcX + subW, y: srcY }];
-    } else if (mode === '1x2') {
-        const subH = srcHeight / 2; groupObj.gridClass = 'jigsaw-grid-2';
-        positions = [{ id: '1', x: srcX, y: srcY }, { id: '2', x: srcX, y: srcY + subH }];
+    if (groupObj.crop) {
+        srcX = groupObj.crop.x; srcY = groupObj.crop.y;
+        srcWidth = groupObj.crop.width; srcHeight = groupObj.crop.height;
+    }
+    let targetRatio = (3 * cols) / (4 * rows);
+    if (!groupObj.crop) {
+        const currentRatio = img.width / img.height;
+        if (currentRatio > targetRatio) { srcWidth = img.height * targetRatio; srcX = (img.width - srcWidth) / 2; }
+        else { srcHeight = img.width / targetRatio; srcY = (img.height - srcHeight) / 2; }
+    }
+    const subWidthSource = srcWidth / cols;
+    const subHeightSource = srcHeight / rows;
+    groupObj.gridClass = cols * rows > 2 ? 'jigsaw-grid-4' : 'jigsaw-grid-2';
+    const positions = [];
+    for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+            positions.push({ id: String(row * cols + col + 1), x: srcX + col * subWidthSource, y: srcY + row * subHeightSource });
+        }
     }
     let completedCount = 0;
-    const subWidthSource = mode === '2x2' || mode === '2x1' ? srcWidth / 2 : srcWidth;
-    const subHeightSource = mode === '2x2' || mode === '1x2' ? srcHeight / 2 : srcHeight;
     positions.forEach((pos, index) => {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
@@ -1069,6 +1362,7 @@ function refreshAllJigsawGroupsUI() {
     container.innerHTML = '';
     const jigsawActionBar = document.getElementById('jigsawActionBar');
     if (jigsawActionBar && allJigsawGroupsData.length > 0) jigsawActionBar.style.display = 'block';
+    recomputeJigsawFileNames();
     refreshAllPreviewBar();
     allJigsawGroupsData.forEach((groupObj, index) => {
         const groupDiv = document.createElement('div');
@@ -1081,15 +1375,29 @@ function refreshAllJigsawGroupsUI() {
                     <span style="font-size:12px;opacity:0.8">前缀:</span>
                     <input type="text" class="jigsaw-input-prefix" value="${groupObj.prefix}" onchange="updateJigsawGroupPrefix(${groupObj.id}, this.value)">
                     <select class="jigsaw-select-mode-single" onchange="updateSingleJigsawMode(${groupObj.id}, this.value)">
-                        <option value="2x2" ${groupObj.mode === '2x2' ? 'selected' : ''}>四宫格 2×2</option>
-                        <option value="2x1" ${groupObj.mode === '2x1' ? 'selected' : ''}>横向双切</option>
-                        <option value="1x2" ${groupObj.mode === '1x2' ? 'selected' : ''}>纵向双切</option>
+                        <option value="2x2" ${groupObj.mode === '2x2' ? 'selected' : ''}>2×2</option>
+                        <option value="2x1" ${groupObj.mode === '2x1' ? 'selected' : ''}>2×1</option>
+                        <option value="1x2" ${groupObj.mode === '1x2' ? 'selected' : ''}>1×2</option>
+                        <option value="4x4" ${groupObj.mode === '4x4' ? 'selected' : ''}>4×4</option>
+                        <option value="4x5" ${groupObj.mode === '4x5' ? 'selected' : ''}>4×5</option>
+                        <option value="6x6" ${groupObj.mode === '6x6' ? 'selected' : ''}>6×6</option>
+                        <option value="8x8" ${groupObj.mode === '8x8' ? 'selected' : ''}>8×8</option>
+                        <option value="custom" ${groupObj.mode === 'custom' ? 'selected' : ''}>自定义</option>
                     </select>
+                    <span class="jigsaw-cut-inputs" style="display:${groupObj.mode === 'custom' ? 'inline-flex' : 'none'}">
+                        <input type="number" class="jigsaw-cut-input" min="1" max="20" value="${groupObj.cutCols || 2}" placeholder="列" onchange="updateSingleJigsawGrid(${groupObj.id}, 'cols', this.value)" title="列：横向切割数">
+                         <span class="jigsaw-cut-label">列</span>
+                         <span>×</span>
+                         <input type="number" class="jigsaw-cut-input" min="1" max="20" value="${groupObj.cutRows || 2}" placeholder="行" onchange="updateSingleJigsawGrid(${groupObj.id}, 'rows', this.value)" title="行：竖向切割数">
+                         <span class="jigsaw-cut-label">行</span>
+                    </span>
                     <span class="jigsaw-original-preview-label">原图预览</span>
                     <img src="${groupObj.img.src}" class="jigsaw-original-preview-img" alt="原图">
                 </div>
                 <div>
+                    <button class="form-btn purple-btn" style="padding:3px 10px; font-size:12px;" onclick="openGroupCropEditor(${groupObj.id})">选区</button>
                     <button class="form-btn blue-btn" style="padding:3px 10px; font-size:12px;" onclick="downloadSingleJigsawZip(${groupObj.id})">打包下载</button>
+                    <button class="form-btn green-btn" style="padding:3px 10px; font-size:12px;" onclick="downloadSingleJigsawFullImage(${groupObj.id})">下载整图</button>
                     <button class="form-btn red-btn" style="padding:3px 10px; font-size:12px;" onclick="deleteJigsawGroup(${groupObj.id})">清空</button>
                 </div>
             </div>
@@ -1115,7 +1423,6 @@ function updateJigsawGroupPrefix(id, newPrefix) {
     const groupObj = allJigsawGroupsData.find(g => g.id === id);
     if (!groupObj || !newPrefix.trim()) return;
     groupObj.prefix = newPrefix.trim(); groupObj.isCustom = true;
-    groupObj.tasks.forEach(t => { t.fileName = `${groupObj.prefix}-${t.id}.jpeg`; });
     refreshAllJigsawGroupsUI();
 }
 
@@ -1124,6 +1431,21 @@ function updateSingleJigsawMode(id, newMode) {
     if (!groupObj) return;
     groupObj.mode = newMode;
     groupObj.modeIsCustom = true;
+    if (newMode === 'custom' && (!groupObj.cutCols || !groupObj.cutRows)) {
+        const grid = getJigsawCustomGrid();
+        groupObj.cutCols = grid.cols;
+        groupObj.cutRows = grid.rows;
+    }
+    generateJigsawCuts(groupObj, () => { refreshAllJigsawGroupsUI(); });
+}
+
+function updateSingleJigsawGrid(id, direction, value) {
+    const groupObj = allJigsawGroupsData.find(g => g.id === id);
+    if (!groupObj) return;
+    const gridValue = Math.max(1, Math.min(20, parseInt(value) || 1));
+    groupObj.mode = 'custom';
+    groupObj.modeIsCustom = true;
+    groupObj[direction === 'cols' ? 'cutCols' : 'cutRows'] = gridValue;
     generateJigsawCuts(groupObj, () => { refreshAllJigsawGroupsUI(); });
 }
 
@@ -1131,15 +1453,33 @@ function updateSingleJigsawMode(id, newMode) {
 
 function downloadSingleJigsawZip(id) {
     const group = allJigsawGroupsData.find(g => g.id === id); if (!group) return;
-    const zip = new JSZip(); group.tasks.forEach(task => { if(task) zip.file(task.fileName, task.blob); });
-    zip.generateAsync({ type: "blob" }).then(c => saveAs(c, `${group.prefix}.zip`));
+    recomputeJigsawFileNames();
+    const groupIndex = allJigsawGroupsData.indexOf(group);
+    const folderName = `image_${groupIndex}`;
+    const zip = new JSZip(); 
+    const folder = zip.folder(folderName);
+    group.tasks.forEach((task, taskIdx) => { 
+        if(task) {
+            const pieceName = `${groupIndex}-${taskIdx + 1}.jpeg`;
+            folder.file(pieceName, task.blob); 
+        }
+    });
+    zip.generateAsync({ type: "blob" }).then(c => saveAs(c, `${folderName}.zip`));
 }
 
 function downloadAllJigsawGroupsZip() {
     if (allJigsawGroupsData.length === 0) return;
+    recomputeJigsawFileNames();
     const zip = new JSZip();
-    allJigsawGroupsData.forEach(group => {
-        const folder = zip.folder(group.prefix); group.tasks.forEach(task => { if(task) folder.file(task.fileName, task.blob); });
+    allJigsawGroupsData.forEach((group, groupIdx) => {
+        const folderName = `image_${groupIdx}`;
+        const folder = zip.folder(folderName);
+        group.tasks.forEach((task, taskIdx) => { 
+            if(task) {
+                const pieceName = `${groupIdx}-${taskIdx + 1}.jpeg`;
+                folder.file(pieceName, task.blob); 
+            }
+        });
     });
     zip.generateAsync({ type: "blob" }).then(c => { saveAs(c, "切图合集.zip"); });
 }
@@ -1147,13 +1487,10 @@ function downloadAllJigsawGroupsZip() {
 function createJigsawFullImageBlob(group) {
     return new Promise((resolve) => {
         if (!group.tasks || group.tasks.length === 0) { resolve(null); return; }
-        const mode = group.mode || '2x2';
         const pw = group.targetOutWidth || 300;
         const ph = group.targetOutHeight || 400;
-        let cols, rows;
-        if (mode === '2x2') { cols = 2; rows = 2; }
-        else if (mode === '2x1') { cols = 2; rows = 1; }
-        else { cols = 1; rows = 2; }
+        const grid = getJigsawGroupGrid(group);
+        const cols = grid.cols, rows = grid.rows;
         
         // 读取整图输出分辨率设置
         const fullWidthInput = document.getElementById('jigsawFullOutputWidth');
@@ -1181,8 +1518,8 @@ function createJigsawFullImageBlob(group) {
             const img = new Image();
             img.onload = () => {
                 const id = parseInt(task.id) - 1;
-                const col = mode === '1x2' ? 0 : id % cols;
-                const row = mode === '2x1' ? 0 : Math.floor(id / cols);
+                const col = id % cols;
+                const row = Math.floor(id / cols);
                 ctx.drawImage(img, col * drawW, row * drawH, drawW, drawH);
                 loaded++;
                 if (loaded === total) {
@@ -1226,15 +1563,24 @@ function compressFullImageToSize(canvas, quality, maxByteSize, callback) {
 function downloadAllJigsawFullImages() {
     if (allJigsawGroupsData.length === 0) return;
     const zip = new JSZip();
-    const promises = allJigsawGroupsData.map(group =>
+    const promises = allJigsawGroupsData.map((group, groupIndex) =>
         createJigsawFullImageBlob(group).then(blob => {
-            if (blob) zip.file(`${group.prefix}_整图.jpg`, blob);
+            if (blob) zip.file(`image_full_${groupIndex}.jpg`, blob);
         })
     );
     Promise.all(promises).then(() => {
         zip.generateAsync({ type: 'blob' }).then(c => {
             saveAs(c, '全部整图合集.zip');
         });
+    });
+}
+
+function downloadSingleJigsawFullImage(id) {
+    const group = allJigsawGroupsData.find(g => g.id === id);
+    if (!group) return;
+    const groupIndex = allJigsawGroupsData.indexOf(group);
+    createJigsawFullImageBlob(group).then(blob => {
+        if (blob) saveAs(blob, `image_full_${groupIndex}.jpg`);
     });
 }
 
@@ -1261,6 +1607,215 @@ function clearAllJigsawHistory() {
         if (jigsawActionBar) jigsawActionBar.style.display = 'none';
     }
 }
+
+// ============================================================
+// 💬 拼图留言板
+// ============================================================
+let jigsawComments = [];
+const JIGSAW_COMMENTS_PATH = RTDB_PATH + '/jigsawComments';
+
+function toggleJigsawComments() {
+    const body = document.getElementById('jigsawCommentBody');
+    const icon = document.getElementById('jigsawCommentToggleIcon');
+    if (!body || !icon) return;
+    const expanded = body.style.display !== 'none';
+    if (expanded) {
+        body.style.display = 'none';
+        icon.textContent = '▼';
+    } else {
+        body.style.display = 'block';
+        icon.textContent = '▲';
+        if (jigsawComments.length === 0) loadJigsawComments();
+    }
+}
+
+function getJigsawAreaOptions() {
+    return allJigsawGroupsData.map((g, i) => ({ label: '区域' + g.prefix, value: g.prefix }));
+}
+
+async function loadJigsawComments() {
+    if (!isFirebaseConfigured()) { renderJigsawComments(); return; }
+    try {
+        const snapshot = await db.ref(JIGSAW_COMMENTS_PATH).once('value');
+        const data = snapshot.val();
+        jigsawComments = Array.isArray(data) ? data : [];
+        renderJigsawComments();
+    } catch (e) {
+        console.error('加载留言失败:', e);
+        jigsawComments = [];
+        renderJigsawComments();
+    }
+}
+
+function renderJigsawComments() {
+    const listEl = document.getElementById('jigsawCommentList');
+    if (!listEl) return;
+    if (jigsawComments.length === 0) {
+        listEl.innerHTML = '<div style="color: var(--text-muted); font-size: 13px; padding: 12px; text-align: center;">暂无留言，点击下方按钮新增</div>';
+        return;
+    }
+    // pinned 优先，再按时间倒序
+    const sorted = [...jigsawComments].sort((a, b) => {
+        if ((a.pinned && b.pinned) || (!a.pinned && !b.pinned)) {
+            return (b.timestamp || 0) - (a.timestamp || 0);
+        }
+        return a.pinned ? -1 : 1;
+    });
+    const grouped = {};
+    sorted.forEach(c => {
+        const area = c.area || '未分组';
+        if (!grouped[area]) grouped[area] = [];
+        grouped[area].push(c);
+    });
+    let html = '';
+    for (const [area, comments] of Object.entries(grouped)) {
+        html += '<div class="jigsaw-comment-group">';
+        html += '<div class="jigsaw-comment-group-title">' + escapeHtml(area) + '</div>';
+        comments.forEach(c => {
+            const timeStr = c.timestamp ? new Date(c.timestamp).toLocaleString('zh-CN') : '';
+            const pinnedClass = c.pinned ? ' jigsaw-comment-pinned' : '';
+            const pinIcon = c.pinned ? '📌' : '📌';
+            const pinTitle = c.pinned ? '取消置顶' : '置顶';
+            html += '<div class="jigsaw-comment-item' + pinnedClass + '">';
+            html += '<div class="jigsaw-comment-content">' + escapeHtml(c.content || '') + '</div>';
+            html += '<div class="jigsaw-comment-meta">';
+            html += '<span class="jigsaw-comment-time">' + timeStr + '</span>';
+            html += '<span class="jigsaw-comment-actions">';
+            html += '<button class="jigsaw-comment-btn jigsaw-comment-pin-btn" onclick="event.stopPropagation(); togglePinComment(\'' + c.id + '\')" title="' + pinTitle + '">' + pinIcon + '</button>';
+            html += '<button class="jigsaw-comment-btn jigsaw-comment-edit-btn" onclick="event.stopPropagation(); editJigsawComment(\'' + c.id + '\')" title="编辑">✏️</button>';
+            html += '<button class="jigsaw-comment-btn jigsaw-comment-delete-btn" onclick="event.stopPropagation(); deleteJigsawComment(\'' + c.id + '\')" title="删除">🗑️</button>';
+            html += '</span>';
+            html += '</div>';
+            html += '</div>';
+        });
+        html += '</div>';
+    }
+    listEl.innerHTML = html;
+}
+
+function editJigsawComment(commentId) {
+    const comment = jigsawComments.find(c => c.id === commentId);
+    if (!comment) return;
+    const newContent = prompt('修改留言内容：', comment.content || '');
+    if (newContent === null) return; // 用户取消
+    const trimmed = newContent.trim();
+    if (!trimmed) return;
+    comment.content = trimmed;
+    comment.timestamp = Date.now();
+    saveJigsawComments().then(() => renderJigsawComments());
+}
+
+async function deleteJigsawComment(commentId) {
+    if (!confirm('确定要删除这条留言吗？')) return;
+    jigsawComments = jigsawComments.filter(c => c.id !== commentId);
+    await saveJigsawComments();
+    renderJigsawComments();
+}
+
+async function togglePinComment(commentId) {
+    const comment = jigsawComments.find(c => c.id === commentId);
+    if (!comment) return;
+    comment.pinned = !comment.pinned;
+    await saveJigsawComments();
+    renderJigsawComments();
+}
+
+function openNewJigsawCommentDialog() {
+    const areaOptions = getJigsawAreaOptions();
+    let areaSelectHtml = '';
+    if (areaOptions.length > 0) {
+        areaSelectHtml = '<select id="jigsawCommentAreaSelect" class="form-select" style="margin-bottom: 10px; width: 100%;">' +
+            areaOptions.map(o => '<option value="' + escapeHtml(o.value) + '">' + escapeHtml(o.label) + '</option>').join('') +
+            '<option value="__custom__">自定义区域...</option></select>';
+    }
+    const overlay = document.createElement('div');
+    overlay.className = 'fish-modal-overlay open';
+    overlay.id = 'jigsawCommentDialogOverlay';
+    overlay.onclick = function(e) { if (e.target === overlay) closeJigsawCommentDialog(); };
+    overlay.innerHTML = '<div class="fish-modal-card" style="width: 400px;"><div class="fish-modal-header">' +
+        '<h3>新增留言</h3><button class="fish-modal-close" onclick="closeJigsawCommentDialog()">✕</button></div>' +
+        '<div class="fish-modal-body">' +
+        (areaOptions.length > 0 ? '<label style="font-size: 12px; color: var(--text-muted);">选择区域块：</label>' + areaSelectHtml : '') +
+        '<label style="font-size: 12px; color: var(--text-muted); display: block; margin-bottom: 4px;">留言内容：</label>' +
+        '<textarea id="jigsawCommentTextarea" class="form-textarea" style="width: 100%; height: 100px; resize: vertical; font-size: 14px;" placeholder="请输入留言内容..."></textarea>' +
+        '<div style="margin-top: 12px; display: flex; gap: 10px; justify-content: flex-end;">' +
+        '<button class="form-btn red-btn" onclick="closeJigsawCommentDialog()">取消</button>' +
+        '<button class="form-btn" onclick="submitJigsawComment()">确认提交</button></div></div></div>';
+    document.body.appendChild(overlay);
+    // 处理自定义区域输入
+    const areaSelect = document.getElementById('jigsawCommentAreaSelect');
+    if (areaSelect) {
+        areaSelect.addEventListener('change', function() {
+            const customInput = document.getElementById('jigsawCommentCustomArea');
+            if (this.value === '__custom__') {
+                if (!customInput) {
+                    const inp = document.createElement('input');
+                    inp.type = 'text';
+                    inp.id = 'jigsawCommentCustomArea';
+                    inp.className = 'form-input';
+                    inp.placeholder = '输入自定义区域名称...';
+                    inp.style.cssText = 'width: 100%; margin-top: 8px;';
+                    this.parentElement.insertBefore(inp, this.nextSibling);
+                }
+            } else {
+                if (customInput) customInput.remove();
+            }
+        });
+    }
+    setTimeout(() => {
+        const ta = document.getElementById('jigsawCommentTextarea');
+        if (ta) ta.focus();
+    }, 100);
+}
+
+function closeJigsawCommentDialog() {
+    const overlay = document.getElementById('jigsawCommentDialogOverlay');
+    if (overlay) overlay.remove();
+}
+
+async function submitJigsawComment() {
+    const textarea = document.getElementById('jigsawCommentTextarea');
+    const content = textarea ? textarea.value.trim() : '';
+    if (!content) return;
+    
+    const areaSelect = document.getElementById('jigsawCommentAreaSelect');
+    const customInput = document.getElementById('jigsawCommentCustomArea');
+    let area = '未分组';
+    if (areaSelect) {
+        area = areaSelect.value === '__custom__' ? (customInput ? customInput.value.trim() || '自定义' : '自定义') : areaSelect.value;
+    }
+    
+    const comment = {
+        id: 'comment_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+        area: area,
+        content: content,
+        timestamp: Date.now(),
+        pinned: false
+    };
+    
+    jigsawComments.push(comment);
+    await saveJigsawComments();
+    closeJigsawCommentDialog();
+    renderJigsawComments();
+}
+
+async function saveJigsawComments() {
+    if (!isFirebaseConfigured()) { updateSyncBar('offline', '留言已本地保存'); return; }
+    try {
+        await db.ref(JIGSAW_COMMENTS_PATH).set(jigsawComments);
+    } catch (e) {
+        console.error('保存留言失败:', e);
+    }
+}
+
+// 在页面加载时预加载留言
+const _origSwitchView = switchView;
+switchView = function(viewName) {
+    _origSwitchView(viewName);
+    if (viewName === 'jigsaw' && jigsawComments.length === 0) {
+        loadJigsawComments();
+    }
+};
 
 // ============================================================
 // 🚀 初始化
