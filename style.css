@@ -430,9 +430,26 @@ header h1 { color: var(--text-color); font-size: 22px; font-weight: 700; }
     background-color: var(--container-bg);
     border: 1px solid var(--border-color);
     border-radius: 12px;
-    padding: 28px 36px;
+    padding: 0;
     box-shadow: 0 8px 25px rgba(0,0,0,0.4);
     min-height: calc(100vh - 40px);
+    overflow: hidden;
+}
+.standalone-jigsaw-toolbar {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    padding: 6px 12px;
+    background: var(--container-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+#jigsawToolFrame {
+    display: block;
+    width: 100%;
+    height: calc(100vh - 88px);
+    min-height: 720px;
+    border: 0;
+    background: #f5f5f7;
 }
 .jigsaw-page-header {
     display: flex;
@@ -484,6 +501,8 @@ header h1 { color: var(--text-color); font-size: 22px; font-weight: 700; }
 .jigsaw-mode-card .mode-icon.m-2x2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
 .jigsaw-mode-card .mode-icon.m-2x1 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; }
 .jigsaw-mode-card .mode-icon.m-1x2 { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+.jigsaw-mode-card .mode-icon.m-1x1 { grid-template-columns: 1fr; grid-template-rows: 1fr; }
+.jigsaw-mode-card .mode-icon.m-3x1 { grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr; }
 .jigsaw-mode-card.selected {
     background: rgba(0, 250, 154, 0.12);
     border-color: var(--accent-color);

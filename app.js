@@ -852,6 +852,7 @@ function clampSingleCrop() {
 }
 
 function updateSingleCropView() {
+    updateSingleCropFreeRatioUI();
     if (!singleCropState.img || !singleCropImage.clientWidth) return;
     const scaleX = singleCropImage.clientWidth / singleCropState.img.width;
     const scaleY = singleCropImage.clientHeight / singleCropState.img.height;
@@ -900,12 +901,28 @@ function updateSingleCropRatio() {
     if (singleCropFixedRatio.checked) syncSingleCropFields();
 }
 
+function updateSingleCropFreeRatioUI() {
+    const wrap = document.getElementById('singleCropFreeRatioControls');
+    if (!wrap) return;
+    const show = !singleCropFixedRatio.checked;
+    wrap.style.display = show ? 'inline-flex' : 'none';
+    if (!show || !singleCropState.img) return;
+    const grid = getSingleCropGrid();
+    const pieceRatio = simplifyJigsawRatio(singleCropState.width / grid.cols, singleCropState.height / grid.rows);
+    const unit = Math.max(1, parseInt(document.getElementById('singleCropRatioUnit')?.value) || getJigsawRatioUnit());
+    const ratioLabel = document.getElementById('singleCropFreeRatioLabel');
+    if (ratioLabel) ratioLabel.textContent = `${pieceRatio.w}:${pieceRatio.h}`;
+    const outLabel = document.getElementById('singleCropFreeOutputLabel');
+    if (outLabel) outLabel.textContent = `${Math.round(pieceRatio.w * unit)}×${Math.round(pieceRatio.h * unit)}`;
+}
+
 if (singleCropRatioPreset) singleCropRatioPreset.addEventListener('change', updateSingleCropRatio);
 const ratioXInput = document.getElementById('singleCropRatioX');
 const ratioYInput = document.getElementById('singleCropRatioY');
 if (ratioXInput) ratioXInput.addEventListener('input', updateSingleCropRatio);
 if (ratioYInput) ratioYInput.addEventListener('input', updateSingleCropRatio);
-if (singleCropFixedRatio) singleCropFixedRatio.addEventListener('change', () => { if (singleCropFixedRatio.checked) { updateSingleCropRatio(); syncSingleCropFields(); } });
+document.getElementById('singleCropRatioUnit')?.addEventListener('input', updateSingleCropFreeRatioUI);
+if (singleCropFixedRatio) singleCropFixedRatio.addEventListener('change', () => { updateSingleCropFreeRatioUI(); if (singleCropFixedRatio.checked) autoAdjustCropRatio(); });
 singleCropFields.forEach(field => {
     if (field) {
         field.addEventListener('change', syncSingleCropFields);
@@ -960,12 +977,12 @@ if (singleCropSelection) {
 
 function autoAdjustCropRatio() {
     const grid = getSingleCropGrid();
-    const ratio = 0.75 * grid.cols / grid.rows;
+    const dr = getJigsawDefaultRatio();
+    const ratio = (dr.w / dr.h) * grid.cols / grid.rows;
     singleCropRatio.value = ratio;
-    
+    singleCropRatioPreset.value = '0.75';
     const label = document.getElementById('singleCropAutoRatioLabel');
-    if (label) label.textContent = `${grid.cols * 3}:${grid.rows * 4}`;
-    
+    if (label) label.textContent = `${dr.w}:${dr.h}`;
     if (singleCropState.img && singleCropFixedRatio.checked) {
         const img = singleCropState.img;
         const cx = singleCropState.x + singleCropState.width / 2;
@@ -1001,20 +1018,23 @@ function openGroupCropEditor(id) {
     const groupGrid = getJigsawGroupGrid(group);
     
     // 设置裁剪弹窗中的网格选项和自定义行列数
-    const groupGridMode = ['2x2', '2x1', '1x2', '4x4', '4x5', '6x6', '8x8'].includes(group.mode) ? group.mode : (group.mode === 'custom' ? 'custom' : 'custom');
+    const groupGridMode = ['2x2', '2x1', '1x2', '3x1', '4x4', '4x5', '6x6', '8x8'].includes(group.mode) ? group.mode : (group.mode === 'custom' ? 'custom' : `${groupGrid.cols}x${groupGrid.rows}`);
     document.getElementById('singleCropGroupGrid').value = groupGridMode;
     document.getElementById('singleCropGroupCols').value = groupGrid.cols;
     document.getElementById('singleCropGroupRows').value = groupGrid.rows;
     document.getElementById('singleCropGroupGridCustom').style.display = groupGridMode === 'custom' ? 'inline-flex' : 'none';
 
-    const ratio = 0.75 * groupGrid.cols / groupGrid.rows;
+    const dr = getJigsawDefaultRatio();
+    const ratio = (dr.w / dr.h) * groupGrid.cols / groupGrid.rows;
     singleCropRatio.value = ratio;
-    
+    singleCropRatioPreset.value = '0.75';
+
     const autoLabel = document.getElementById('singleCropAutoRatioLabel');
-    if (autoLabel) autoLabel.textContent = `${groupGrid.cols * 3}:${groupGrid.rows * 4}`;
-    
+    if (autoLabel) autoLabel.textContent = `${dr.w}:${dr.h}`;
+
     let initW, initH, initX, initY;
     if (group.crop) {
+        // 恢复该组上次确认的选区
         initW = group.crop.width;
         initH = group.crop.height;
         initX = group.crop.x;
@@ -1029,9 +1049,12 @@ function openGroupCropEditor(id) {
         initX = Math.round((group.img.width - initW) / 2);
         initY = Math.round((group.img.height - initH) / 2);
     }
-    
+
     singleCropState = { img: group.img, url: group.img.src, x: initX, y: initY, width: initW, height: initH, dragging: null };
-    singleCropFixedRatio.checked = true;
+    singleCropFixedRatio.checked = !(group.crop && group.freeRatioCrop);
+    const ratioUnitInput = document.getElementById('singleCropRatioUnit');
+    if (ratioUnitInput) ratioUnitInput.value = group.ratioUnit || getJigsawRatioUnit();
+    updateSingleCropFreeRatioUI();
     singleCropImage.src = group.img.src;
     singleCropStage.style.display = 'inline-block';
     singleCropSelection.style.display = 'block';
@@ -1047,29 +1070,28 @@ function openGroupCropEditor(id) {
 const singleCropConfirmBtn = document.getElementById('singleCropConfirmBtn');
 if (singleCropConfirmBtn) {
     singleCropConfirmBtn.addEventListener('click', () => {
-        if (!singleCropState.img || singleCropEditingGroupId === null) return;
-
+        if (!singleCropState.img) return;
         syncSingleCropFields();
-        const group = allJigsawGroupsData.find(item => item.id === singleCropEditingGroupId);
-        if (!group) return;
-
-        group.crop = {
-            x: Math.round(singleCropState.x),
-            y: Math.round(singleCropState.y),
-            width: Math.round(singleCropState.width),
-            height: Math.round(singleCropState.height)
-        };
-
-        const gridMode = document.getElementById('singleCropGroupGrid').value;
-        group.mode = gridMode;
-        if (gridMode === 'custom') {
-            group.cutCols = parseInt(document.getElementById('singleCropGroupCols').value) || 2;
-            group.cutRows = parseInt(document.getElementById('singleCropGroupRows').value) || 2;
+        if (singleCropEditingGroupId !== null) {
+            const group = allJigsawGroupsData.find(item => item.id === singleCropEditingGroupId);
+            if (group) {
+                group.crop = { x: singleCropState.x, y: singleCropState.y, width: singleCropState.width, height: singleCropState.height };
+                group.freeRatioCrop = !singleCropFixedRatio.checked;
+                group.ratioUnit = Math.max(1, parseInt(document.getElementById('singleCropRatioUnit')?.value) || getJigsawRatioUnit());
+                const gridMode = document.getElementById('singleCropGroupGrid').value;
+                group.mode = gridMode;
+                group.modeIsCustom = true;
+                if (gridMode === 'custom') {
+                    group.cutCols = Math.max(1, Math.min(20, parseInt(document.getElementById('singleCropGroupCols').value) || 2));
+                    group.cutRows = Math.max(1, Math.min(20, parseInt(document.getElementById('singleCropGroupRows').value) || 2));
+                }
+                singleCropEditingGroupId = null;
+                showJigsawPage();
+                generateJigsawCuts(group, refreshAllJigsawGroupsUI);
+            }
+            return;
         }
-
-        singleCropEditingGroupId = null;
-        showJigsawPage();
-        generateJigsawCuts(group, () => refreshAllJigsawGroupsUI());
+        return;
     });
 }
 
@@ -1149,8 +1171,10 @@ function applyJigsawTemplate() {
     const checked = document.getElementById('jigsawTemplateToggle')?.checked;
     if (!checked) return;
     document.getElementById('jigsawMaxSizeInput').value = 18;
-    document.getElementById('jigsawOutputWidth').value = 300;
-    document.getElementById('jigsawOutputHeight').value = 400;
+    document.getElementById('jigsawDefaultRatioW').value = 3;
+    document.getElementById('jigsawDefaultRatioH').value = 4;
+    document.getElementById('jigsawRatioUnit').value = 100;
+    document.getElementById('jigsawFullRatioUnit').value = 200;
     const numberRadio = document.querySelector('input[name="jigsawPrefixType"][value="number"]');
     const numberCard = document.querySelector('.jigsaw-mode-card[data-value="number"]');
     if (numberRadio) { numberRadio.checked = true; numberRadio.dispatchEvent(new Event('change')); }
@@ -1159,7 +1183,7 @@ function applyJigsawTemplate() {
         numberCard.classList.add('selected');
     }
     const statusDiv = document.getElementById('jigsawStatus');
-    if (statusDiv) statusDiv.textContent = '📋 已应用默认模板：18KB / 300×400 / 数字前缀 / 前3张特殊切法';
+    if (statusDiv) statusDiv.textContent = '📋 已应用默认模板：18KB / 3:4 / 单图 300×400 / 数字前缀 / 前3张特殊切法';
 }
 
 function getJigsawTemplateMode(globalIndex) {
@@ -1176,9 +1200,83 @@ function getJigsawCustomGrid() {
 
 function getJigsawGroupGrid(groupObj) {
     if (groupObj.mode === 'custom') return { cols: groupObj.cutCols || 2, rows: groupObj.cutRows || 2 };
-    const preset = { '2x2': [2, 2], '2x1': [2, 1], '1x2': [1, 2], '4x4': [4, 4], '4x5': [4, 5], '6x6': [6, 6], '8x8': [8, 8] }[groupObj.mode];
+    const preset = { '4x4': [4, 4], '4x5': [4, 5], '6x6': [6, 6], '8x8': [8, 8] }[groupObj.mode];
     if (preset) return { cols: preset[0], rows: preset[1] };
+    if (groupObj.mode === '2x1') return { cols: 2, rows: 1 };
+    if (groupObj.mode === '1x2') return { cols: 1, rows: 2 };
+    if (groupObj.mode === '3x1') return { cols: 3, rows: 1 };
+    if (groupObj.mode === '1x1') return { cols: 1, rows: 1 };
     return { cols: 2, rows: 2 };
+}
+
+// 将宽高约简为最简整数比；数字过大时用误差 ≤1% 的最小整数比近似
+function simplifyJigsawRatio(w, h) {
+    let a = Math.max(1, Math.round(w)), b = Math.max(1, Math.round(h));
+    const gcd = (x, y) => y ? gcd(y, x % y) : x;
+    const g = gcd(a, b) || 1;
+    a /= g; b /= g;
+    if (a <= 100 && b <= 100) return { w: a, h: b };
+    const target = a / b;
+    let best = null;
+    for (let den = 1; den <= 100; den++) {
+        const num = Math.round(target * den);
+        if (num < 1 || num > 100) continue;
+        const diff = Math.abs(num / den - target) / target;
+        if (diff <= 0.01) return { w: num, h: den };
+        if (!best || diff < best.diff) best = { w: num, h: den, diff };
+    }
+    if (best) return { w: best.w, h: best.h };
+    const scale = 100 / Math.max(a, b);
+    return { w: Math.max(1, Math.round(a * scale)), h: Math.max(1, Math.round(b * scale)) };
+}
+
+// 约简比例：仅约去整数公约数，保留小数形式（如 1:3.3 不换算成 10:33）
+function reduceDecimalRatio(w, h) {
+    for (let g = 9; g >= 2; g--) {
+        if (w / g >= 1 && h / g >= 1 && Math.abs(w / g - Math.round(w / g)) < 1e-9 && Math.abs(h / g - Math.round(h / g)) < 1e-9) {
+            return reduceDecimalRatio(Math.round(w / g), Math.round(h / g));
+        }
+    }
+    // 清理浮点误差（如 6.5999999999999996 → 6.6）
+    return { w: Math.round(w * 1e6) / 1e6, h: Math.round(h * 1e6) / 1e6 };
+}
+
+// 智能约简：两个都是整数走原整数约简；含小数则保留小数形式
+function smartSimplifyRatio(w, h) {
+    if (Number.isInteger(w) && Number.isInteger(h)) return simplifyJigsawRatio(w, h);
+    return reduceDecimalRatio(w, h);
+}
+
+// 读取单图默认比例（默认 3:4，支持小数，保留用户输入形式）
+function getJigsawDefaultRatio() {
+    const w = parseFloat(document.getElementById('jigsawDefaultRatioW')?.value);
+    const h = parseFloat(document.getElementById('jigsawDefaultRatioH')?.value);
+    if (!isFinite(w) || !isFinite(h) || w <= 0 || h <= 0) return { w: 3, h: 4 };
+    return reduceDecimalRatio(w, h);
+}
+// 读取单图比例分辨率（默认 100，单图 = 比例 × 此值）
+function getJigsawRatioUnit() {
+    return Math.max(1, Math.min(10000, parseInt(document.getElementById('jigsawRatioUnit')?.value) || 100));
+}
+// 读取整图比例分辨率（默认 200，整图 = 比例 × 此值）
+function getJigsawFullRatioUnit() {
+    return Math.max(1, Math.min(20000, parseInt(document.getElementById('jigsawFullRatioUnit')?.value) || 200));
+}
+// 计算整图输出尺寸 = 整图比例 × 整图比例分辨率（固定比例组：默认比例×网格；自由比例组：选区比例）
+function getJigsawFullOutputSize(group) {
+    const grid = getJigsawGroupGrid(group);
+    const fullUnit = getJigsawFullRatioUnit();
+    let fullRatio;
+    if (group.crop && group.freeRatioCrop) {
+        fullRatio = simplifyJigsawRatio(group.crop.width, group.crop.height);
+    } else {
+        const dr = getJigsawDefaultRatio();
+        fullRatio = smartSimplifyRatio(dr.w * grid.cols, dr.h * grid.rows);
+    }
+    let w = fullRatio.w * fullUnit, h = fullRatio.h * fullUnit;
+    const maxSide = 20000;
+    const scale = Math.min(1, maxSide / Math.max(w, h));
+    return { w: Math.max(1, Math.round(w * scale)), h: Math.max(1, Math.round(h * scale)) };
 }
 
 function getSingleCropGrid() {
@@ -1186,7 +1284,7 @@ function getSingleCropGrid() {
     if (gridMode === 'custom') {
         return { cols: Math.max(1, parseInt(document.getElementById('singleCropGroupCols')?.value) || 2), rows: Math.max(1, parseInt(document.getElementById('singleCropGroupRows')?.value) || 2) };
     }
-    const preset = { '2x2': [2, 2], '2x1': [2, 1], '1x2': [1, 2], '4x4': [4, 4], '4x5': [4, 5], '6x6': [6, 6], '8x8': [8, 8] }[gridMode] || [2, 2];
+    const preset = { '2x2': [2, 2], '2x1': [2, 1], '1x2': [1, 2], '3x1': [3, 1], '4x4': [4, 4], '4x5': [4, 5], '6x6': [6, 6], '8x8': [8, 8] }[gridMode] || [2, 2];
     return { cols: preset[0], rows: preset[1] };
 }
 
@@ -1236,14 +1334,17 @@ async function handleJigsawFiles(files) {
         for (let i = 0; i < imageFiles.length; i++) {
             const prefix = getJigsawPrefix(totalJigsawImageCount);
             if (statusDiv) statusDiv.textContent = `切割中... (${i + 1}/${imageFiles.length}) [${prefix}]`;
-            let mode = defaultMode;
+                let mode = defaultMode;
+            let customGrid = null;
             if (templateEnabled) {
                 const globalIndex = totalJigsawImageCount;
                 if (globalIndex < 2) mode = '1x2';
                 else if (globalIndex === 2) mode = '2x1';
                 else mode = '2x2';
+            } else if (mode === 'custom') {
+                customGrid = getJigsawCustomGrid();
             }
-            await processSingleJigsawFile(imageFiles[i], prefix, mode);
+            await processSingleJigsawFile(imageFiles[i], prefix, mode, customGrid);
             totalJigsawImageCount++;
         }
         if (statusDiv) statusDiv.textContent = `✨ ${imageFiles.length} 张图片切割完毕`;
@@ -1255,14 +1356,14 @@ async function handleJigsawFiles(files) {
     }
 }
 
-function processSingleJigsawFile(file, prefix, mode) {
+function processSingleJigsawFile(file, prefix, mode, customGrid = null) {
     return new Promise((resolve) => {
         const reader = new FileReader();
         reader.onload = function(event) {
             const img = new Image();
             img.onload = function() {
                 const id = ++jigsawGroupCounterId;
-                const groupObj = { id, prefix, isCustom: false, modeIsCustom: false, mode, img, tasks: [], gridClass: '' };
+                const groupObj = { id, prefix, isCustom: false, modeIsCustom: false, mode, cutCols: customGrid?.cols, cutRows: customGrid?.rows, img, tasks: [], gridClass: '' };
                 allJigsawGroupsData.push(groupObj);
                 generateJigsawCuts(groupObj, () => { refreshAllJigsawGroupsUI(); resolve(); });
             };
@@ -1280,20 +1381,33 @@ function generateJigsawCuts(groupObj, onComplete) {
     const img = groupObj.img, mode = groupObj.mode;
     const grid = getJigsawGroupGrid(groupObj);
     const cols = grid.cols, rows = grid.rows;
-    const sizeInput = document.getElementById('jigsawMaxSizeInput');
+    const sizeInput = document.getElementById(groupObj.singleSettings ? 'singleJigsawMaxSizeInput' : 'jigsawMaxSizeInput');
     const maxByteSize = ((sizeInput ? parseFloat(sizeInput.value) : 18) || 18) * 1024;
-    const widthInput = document.getElementById('jigsawOutputWidth');
-    const heightInput = document.getElementById('jigsawOutputHeight');
-    const targetOutWidth = parseInt(widthInput ? widthInput.value : '300') || 300;
-    const targetOutHeight = parseInt(heightInput ? heightInput.value : '400') || 400;
-    groupObj.targetOutWidth = targetOutWidth;
-    groupObj.targetOutHeight = targetOutHeight;
     let srcX = 0, srcY = 0, srcWidth = img.width, srcHeight = img.height;
     if (groupObj.crop) {
         srcX = groupObj.crop.x; srcY = groupObj.crop.y;
         srcWidth = groupObj.crop.width; srcHeight = groupObj.crop.height;
     }
-    let targetRatio = (3 * cols) / (4 * rows);
+    let targetOutWidth, targetOutHeight;
+    const defaultRatio = getJigsawDefaultRatio();
+    const ratioUnit = groupObj.ratioUnit || getJigsawRatioUnit();
+    if (groupObj.crop && groupObj.freeRatioCrop) {
+        // 自由比例：输出单图分辨率 = 选区单张切图比例 × 单图比例分辨率
+        const pieceRatio = simplifyJigsawRatio(srcWidth / cols, srcHeight / rows);
+        targetOutWidth = pieceRatio.w * ratioUnit;
+        targetOutHeight = pieceRatio.h * ratioUnit;
+    } else {
+        // 固定比例：单图 = 单图默认比例 × 单图比例分辨率（默认 3:4 × 100 = 300×400）
+        targetOutWidth = defaultRatio.w * ratioUnit;
+        targetOutHeight = defaultRatio.h * ratioUnit;
+    }
+    const maxSide = 10000;
+    const outScale = Math.min(1, maxSide / Math.max(targetOutWidth, targetOutHeight));
+    targetOutWidth = Math.max(1, Math.round(targetOutWidth * outScale));
+    targetOutHeight = Math.max(1, Math.round(targetOutHeight * outScale));
+    groupObj.targetOutWidth = targetOutWidth;
+    groupObj.targetOutHeight = targetOutHeight;
+    let targetRatio = (defaultRatio.w * cols) / (defaultRatio.h * rows);
     if (!groupObj.crop) {
         const currentRatio = img.width / img.height;
         if (currentRatio > targetRatio) { srcWidth = img.height * targetRatio; srcX = (img.width - srcWidth) / 2; }
@@ -1317,7 +1431,7 @@ function generateJigsawCuts(groupObj, onComplete) {
         compressJigsawToSize(canvas, 0.95, maxByteSize, (blob) => {
             if (groupObj._cutToken !== myToken) return;
             const url = URL.createObjectURL(blob);
-            groupObj.tasks[index] = { url, blob, id: pos.id, fileName: `${groupObj.prefix}-${pos.id}.jpeg` };
+            groupObj.tasks[index] = { url, blob, id: pos.id, fileName: '' };
             completedCount++; if (completedCount === positions.length) onComplete();
         });
     });
@@ -1365,6 +1479,7 @@ function refreshAllJigsawGroupsUI() {
     recomputeJigsawFileNames();
     refreshAllPreviewBar();
     allJigsawGroupsData.forEach((groupObj, index) => {
+        const fullSize = getJigsawFullOutputSize(groupObj);
         const groupDiv = document.createElement('div');
         groupDiv.className = 'jigsaw-group-container';
         groupDiv.id = `jigsaw-group-${groupObj.id}`;
@@ -1376,8 +1491,10 @@ function refreshAllJigsawGroupsUI() {
                     <input type="text" class="jigsaw-input-prefix" value="${groupObj.prefix}" onchange="updateJigsawGroupPrefix(${groupObj.id}, this.value)">
                     <select class="jigsaw-select-mode-single" onchange="updateSingleJigsawMode(${groupObj.id}, this.value)">
                         <option value="2x2" ${groupObj.mode === '2x2' ? 'selected' : ''}>2×2</option>
+                        <option value="1x1" ${groupObj.mode === '1x1' ? 'selected' : ''}>1×1</option>
                         <option value="2x1" ${groupObj.mode === '2x1' ? 'selected' : ''}>2×1</option>
                         <option value="1x2" ${groupObj.mode === '1x2' ? 'selected' : ''}>1×2</option>
+                        <option value="3x1" ${groupObj.mode === '3x1' ? 'selected' : ''}>3×1</option>
                         <option value="4x4" ${groupObj.mode === '4x4' ? 'selected' : ''}>4×4</option>
                         <option value="4x5" ${groupObj.mode === '4x5' ? 'selected' : ''}>4×5</option>
                         <option value="6x6" ${groupObj.mode === '6x6' ? 'selected' : ''}>6×6</option>
@@ -1393,6 +1510,8 @@ function refreshAllJigsawGroupsUI() {
                     </span>
                     <span class="jigsaw-original-preview-label">原图预览</span>
                     <img src="${groupObj.img.src}" class="jigsaw-original-preview-img" alt="原图">
+                    <span class="jigsaw-original-preview-label">单图分辨率 ${groupObj.targetOutWidth || '?'}×${groupObj.targetOutHeight || '?'}</span>
+                    <span class="jigsaw-original-preview-label">整图分辨率 ${fullSize.w}×${fullSize.h}</span>
                 </div>
                 <div>
                     <button class="form-btn purple-btn" style="padding:3px 10px; font-size:12px;" onclick="openGroupCropEditor(${groupObj.id})">选区</button>
@@ -1487,31 +1606,17 @@ function downloadAllJigsawGroupsZip() {
 function createJigsawFullImageBlob(group) {
     return new Promise((resolve) => {
         if (!group.tasks || group.tasks.length === 0) { resolve(null); return; }
-        const pw = group.targetOutWidth || 300;
-        const ph = group.targetOutHeight || 400;
         const grid = getJigsawGroupGrid(group);
         const cols = grid.cols, rows = grid.rows;
-        
-        // 读取整图输出分辨率设置
-        const fullWidthInput = document.getElementById('jigsawFullOutputWidth');
-        const fullHeightInput = document.getElementById('jigsawFullOutputHeight');
-        const fullWidth = parseInt(fullWidthInput?.value) || 0;
-        const fullHeight = parseInt(fullHeightInput?.value) || 0;
-        
+
+        const full = getJigsawFullOutputSize(group);
         const canvas = document.createElement('canvas');
-        let drawW, drawH;
-        if (fullWidth > 0 && fullHeight > 0) {
-            canvas.width = fullWidth;
-            canvas.height = fullHeight;
-            drawW = fullWidth / cols;
-            drawH = fullHeight / rows;
-        } else {
-            canvas.width = pw * cols;
-            canvas.height = ph * rows;
-            drawW = pw;
-            drawH = ph;
-        }
+        canvas.width = full.w;
+        canvas.height = full.h;
+        const drawW = full.w / cols;
+        const drawH = full.h / rows;
         const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
         let loaded = 0;
         const total = group.tasks.length;
         group.tasks.forEach(task => {
@@ -1520,7 +1625,10 @@ function createJigsawFullImageBlob(group) {
                 const id = parseInt(task.id) - 1;
                 const col = id % cols;
                 const row = Math.floor(id / cols);
-                ctx.drawImage(img, col * drawW, row * drawH, drawW, drawH);
+                // 吸附到整数像素边界，避免小数坐标产生抗锯齿缝隙
+                const x0 = Math.round(col * drawW), x1 = Math.round((col + 1) * drawW);
+                const y0 = Math.round(row * drawH), y1 = Math.round((row + 1) * drawH);
+                ctx.drawImage(img, x0, y0, x1 - x0, y1 - y0);
                 loaded++;
                 if (loaded === total) {
                     finalizeFullImageBlob(canvas, resolve);
@@ -1563,9 +1671,19 @@ function compressFullImageToSize(canvas, quality, maxByteSize, callback) {
 function downloadAllJigsawFullImages() {
     if (allJigsawGroupsData.length === 0) return;
     const zip = new JSZip();
+    const groupNaming = document.getElementById('jigsawFullImageGroupNaming')?.checked;
     const promises = allJigsawGroupsData.map((group, groupIndex) =>
         createJigsawFullImageBlob(group).then(blob => {
-            if (blob) zip.file(`image_full_${groupIndex}.jpg`, blob);
+            if (!blob) return;
+            const fileName = groupNaming
+                ? `${Math.floor(groupIndex / 3)}-${groupIndex % 3}.jpg`
+                : `image_full_${groupIndex}.jpg`;
+            if (groupNaming) {
+                const folderName = `full_${Math.floor(groupIndex / 3)}`;
+                zip.folder(folderName).file(fileName, blob);
+            } else {
+                zip.file(fileName, blob);
+            }
         })
     );
     Promise.all(promises).then(() => {

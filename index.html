@@ -126,8 +126,16 @@
         <!-- 内容由 JS 动态生成 -->
     </div>
 
-    <!-- 切图页面 -->
-    <div id="jigsawAppPage">
+    <!-- 独立拼图工具入口：以后只需替换 jigsaw.html -->
+    <div id="jigsawAppPage" class="standalone-jigsaw-page">
+        <div class="standalone-jigsaw-toolbar">
+            <button class="form-btn blue-btn" onclick="switchView('dashboard')">← 返回主看板</button>
+        </div>
+        <iframe id="jigsawToolFrame" src="jigsaw.html" title="拼图切割工具" loading="eager"></iframe>
+    </div>
+
+    <!-- 旧版拼图页面兼容区，已隐藏，不参与显示 -->
+    <div id="jigsawLegacyAppPage" style="display:none;">
         <div class="jigsaw-page-header">
             <div class="jigsaw-page-title">🧩 3:4 比例多图批量智能切图工作台</div>
             <div class="jigsaw-page-header-actions">
@@ -153,18 +161,20 @@
                     <input type="number" id="jigsawFullMaxSizeInput" value="" placeholder="不限制"><span>KB</span>
                 </div>
                 <div class="jigsaw-setting-item">
-                    <span>输出单图分辨率：</span>
-                    <input type="number" id="jigsawOutputWidth" class="jigsaw-resolution-input" value="300" min="10" max="10000" placeholder="宽" oninput="autoRefreshAllJigsaw()">
-                    <span>×</span>
-                    <input type="number" id="jigsawOutputHeight" class="jigsaw-resolution-input" value="400" min="10" max="10000" placeholder="高" oninput="autoRefreshAllJigsaw()">
-                    <span>像素</span>
+                    <span>单图默认比例：</span>
+                    <input type="number" id="jigsawDefaultRatioW" class="jigsaw-resolution-input" value="3" min="0.1" max="100" step="any" oninput="autoRefreshAllJigsaw()">
+                    <span>:</span>
+                    <input type="number" id="jigsawDefaultRatioH" class="jigsaw-resolution-input" value="4" min="0.1" max="100" step="any" oninput="autoRefreshAllJigsaw()">
+                    <span style="font-weight:normal; font-size:12px; color:var(--text-muted);">支持小数，如 1:3.3</span>
                 </div>
                 <div class="jigsaw-setting-item">
-                    <span>整图输出分辨率：</span>
-                    <input type="number" id="jigsawFullOutputWidth" class="jigsaw-resolution-input" value="600" min="10" max="20000" placeholder="宽">
-                    <span>×</span>
-                    <input type="number" id="jigsawFullOutputHeight" class="jigsaw-resolution-input" value="800" min="10" max="20000" placeholder="高">
-                    <span>像素</span>
+                    <span>单图比例分辨率：</span>
+                    <input type="number" id="jigsawRatioUnit" class="jigsaw-resolution-input" value="100" min="1" max="10000" oninput="autoRefreshAllJigsaw()">
+                    <span style="font-weight:normal; font-size:12px; color:var(--text-muted);">单图 = 比例 × 此值</span>
+                    <span style="margin:0 8px; opacity:0.35;">|</span>
+                    <span>整图比例分辨率：</span>
+                    <input type="number" id="jigsawFullRatioUnit" class="jigsaw-resolution-input" value="200" min="1" max="20000" oninput="autoRefreshAllJigsaw()">
+                    <span style="font-weight:normal; font-size:12px; color:var(--text-muted);">整图 = 比例 × 此值</span>
                 </div>
                 <div class="jigsaw-setting-item">
                     <span>前缀命名规则：</span>
@@ -201,6 +211,16 @@
                             <span>1×2 竖切</span>
                             <span class="check-mark">✓</span>
                         </label>
+                        <label class="jigsaw-mode-card" data-value="3x1" onclick="selectJigsawMode(this, 'jigsawGlobalCutMode')">
+                            <span class="mode-icon m-3x1"><span></span><span></span><span></span></span>
+                            <span>3×1 三横切</span>
+                            <span class="check-mark">✓</span>
+                        </label>
+                        <label class="jigsaw-mode-card" data-value="1x1" onclick="selectJigsawMode(this, 'jigsawGlobalCutMode')">
+                            <span class="mode-icon m-1x1"><span></span></span>
+                            <span>1×1 单图</span>
+                            <span class="check-mark">✓</span>
+                        </label>
                         <label class="jigsaw-mode-card" data-value="custom" onclick="selectJigsawMode(this, 'jigsawGlobalCutMode')">
                             <span>自定义</span>
                             <span class="check-mark">✓</span>
@@ -208,6 +228,8 @@
                         <input type="radio" name="jigsawGlobalCutMode" value="2x2" checked style="display:none;">
                         <input type="radio" name="jigsawGlobalCutMode" value="2x1" style="display:none;">
                         <input type="radio" name="jigsawGlobalCutMode" value="1x2" style="display:none;">
+                        <input type="radio" name="jigsawGlobalCutMode" value="3x1" style="display:none;">
+                        <input type="radio" name="jigsawGlobalCutMode" value="1x1" style="display:none;">
                         <input type="radio" name="jigsawGlobalCutMode" value="custom" style="display:none;">
                         <span id="jigsawGlobalCustomCutInputs" class="jigsaw-cut-inputs" style="display:none;">
                             <input type="number" id="jigsawGlobalCutCols" class="jigsaw-cut-input" min="1" max="20" value="" placeholder="列" oninput="autoRefreshAllJigsaw()" title="列：横向切割数">
@@ -238,44 +260,15 @@
                     <button class="form-btn blue-btn" onclick="showJigsawPage()">取消</button>
                 </div>
                 <div class="single-crop-toolbar">
-                    <span class="single-crop-grid-control">📐 切割网格 
-                        <select id="singleCropGroupGrid" onchange="updateSingleCropGroupGridUI()">
-                            <option value="2x2">2×2 四宫格</option>
-                            <option value="2x1">2×1 横切</option>
-                            <option value="1x2">1×2 竖切</option>
-                            <option value="4x4">4×4</option>
-                            <option value="4x5">4×5</option>
-                            <option value="6x6">6×6</option>
-                            <option value="8x8">8×8</option>
-                            <option value="custom">自定义</option>
-                        </select>
-                    </span>
-                    <span id="singleCropGroupGridCustom" class="jigsaw-cut-inputs" style="display:none">
-                        <input type="number" id="singleCropGroupCols" min="1" max="20" value="2" oninput="autoAdjustCropRatio()" title="列：横向切割数">
-                        <span class="jigsaw-cut-label">列</span>
-                        <span>|</span>
-                        <input type="number" id="singleCropGroupRows" min="1" max="20" value="2" oninput="autoAdjustCropRatio()" title="行：竖向切割数">
-                        <span class="jigsaw-cut-label">行</span>
-                    </span>
+                    <span class="single-crop-grid-control">📐 切割网格 <select id="singleCropGroupGrid" onchange="updateSingleCropGroupGridUI()"><option value="2x2">2×2</option><option value="2x1">2×1</option><option value="1x2">1×2</option><option value="3x1">3×1</option><option value="4x4">4×4</option><option value="4x5">4×5</option><option value="6x6">6×6</option><option value="8x8">8×8</option><option value="custom">自定义</option></select></span>
+                    <span id="singleCropGroupGridCustom" class="jigsaw-cut-inputs" style="display:none"><input type="number" id="singleCropGroupCols" min="1" max="20" value="2" oninput="autoAdjustCropRatio()" title="列：横向切割数"><span class="jigsaw-cut-label">列</span><span>|</span><input type="number" id="singleCropGroupRows" min="1" max="20" value="2" oninput="autoAdjustCropRatio()" title="行：竖向切割数"><span class="jigsaw-cut-label">行</span></span>
                     <label>X <input type="number" id="singleCropX" min="0"></label>
                     <label>Y <input type="number" id="singleCropY" min="0"></label>
                     <label>宽 <input type="number" id="singleCropWidth" min="1"></label>
                     <label>高 <input type="number" id="singleCropHeight" min="1"></label>
-                    <span class="single-crop-ratio-quiet">
-                        <label><input type="checkbox" id="singleCropFixedRatio" checked> 固定比例</label>
-                        <span>每块 
-                            <select id="singleCropRatioPreset" style="display:none">
-                                <option value="0.75">3:4</option>
-                                <option value="custom">自定义</option>
-                            </select>
-                            <b id="singleCropAutoRatioLabel">3:4</b>
-                        </span>
-                        <span id="singleCropCustomRatioInputs" class="single-crop-ratio-custom" style="display:none">
-                            <input type="number" id="singleCropRatioX" min="1" value="3">
-                            <b>:</b>
-                            <input type="number" id="singleCropRatioY" min="1" value="4">
-                        </span>
-                    </span>
+                    <span class="single-crop-ratio-quiet"><label><input type="checkbox" id="singleCropFixedRatio" checked> 固定比例</label><span>每块 <select id="singleCropRatioPreset" style="display:none"><option value="0.75">3:4</option><option value="custom">自定义</option></select><b id="singleCropAutoRatioLabel">3:4</b></span><span id="singleCropCustomRatioInputs" class="single-crop-ratio-custom" style="display:none"><input type="number" id="singleCropRatioX" min="0.1" step="any" value="3"><b>:</b><input type="number" id="singleCropRatioY" min="0.1" step="any" value="4"></span></span>
+                    <span class="single-crop-ratio-quiet"><label>单图比例分辨率 <input type="number" id="singleCropRatioUnit" min="1" max="10000" style="width: 60px; padding: 2px 4px; border: 1px solid var(--border-color); border-radius: 4px; background: var(--bg-color); color: var(--text-color);"></label></span>
+                    <span id="singleCropFreeRatioControls" class="single-crop-ratio-quiet" style="display:none;"><span>单图比例 <b id="singleCropFreeRatioLabel">3:4</b></span><span>输出单图分辨率 <b id="singleCropFreeOutputLabel">300×400</b></span></span>
                     <input type="hidden" id="singleCropRatio" value="0.75">
                 </div>
                 <div class="single-crop-stage" id="singleCropStage">
@@ -342,8 +335,11 @@
         </div>
         <div id="jigsawStatus"></div>
         <div class="jigsaw-action-bar" id="jigsawActionBar">
-            <button class="form-btn orange-btn" onclick="downloadAllJigsawGroupsZip()">📦 打包全部 ZIP</button>
+            <button class="form-btn orange-btn" onclick="downloadAllJigsawGroupsZip()">📦 下载所有切割图</button>
             <button class="form-btn orange-btn" onclick="downloadAllJigsawFullImages()">下载全部整图</button>
+            <label style="display:inline-flex; align-items:center; gap:4px; font-size:12px; color:var(--text-muted); cursor:pointer;">
+                <input type="checkbox" id="jigsawFullImageGroupNaming"> 整图三个一组命名（0-0、0-1、0-2）
+            </label>
             <button class="form-btn red-btn" onclick="clearAllJigsawHistory()">🗑️ 清空历史</button>
         </div>
         <div id="jigsawOutputGroupsContainer"></div>
